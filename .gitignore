@@ -7,11 +7,9 @@
 crash.log
 crash.*.log
 
-
 # Keep the lock file for reproducible providers
 !/.terraform.lock.hcl
 .terraform.lock.hcl
-
 
 # ---------- General ----------
 **/.trivy_cache/
