@@ -1,24 +1,20 @@
 # ---------- Terraform ----------
-.terraform/*
-.terraform/*
-terraform.tfstate
-terraform.tfstate.backup
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.out
+crash.log
+crash.*.log
+
+# Keep the lock file for reproducible providers
+!/.terraform.lock.hcl
 .terraform.lock.hcl
 
-# state, plans, crash logs
-**/*.tfstate
-**/*.tfstate.*
-**/*.tfplan
-**/*.out
-.terraform/crash.log
-.terraform/crash.*.log
-
-
 # ---------- General ----------
-**/.trivy_cache/*
+**/.trivy_cache/
 .idea/
 .DS_Store
 *.log
 .vscode/
-**/.venv/*
-**/.funcignore/*
+**/.venv/
