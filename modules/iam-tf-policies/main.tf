@@ -31,14 +31,19 @@ data "external" "policy_probe" {
 
   program = [
     "bash", "-c", <<-EOT
-      set -e
+      set -euo pipefail
       NAME='${each.value}'
-      ARN=$(aws iam list-policies --scope Local --query "Policies[?PolicyName=='${each.value}'].Arn | [0]" --output text 2>/dev/null || echo 'None')
+      # Try to find a customer-managed policy with this name
+      ARN=$(aws iam list-policies \
+        --scope Local \
+        --query "Policies[?PolicyName=='${each.value}'].Arn | [0]" \
+        --output text 2>/dev/null || echo 'None')
+
       if [ "$ARN" = "None" ] || [ -z "$ARN" ] || [ "$ARN" = "null" ]; then
         echo '{"exists":"false"}'
       else
-        # Return both flag and ARN
-        echo "{\"exists\":\"true\",\"arn\":\"${ARN}\"}"
+        # IMPORTANT: escape Terraform interpolation with $$
+        echo "{\"exists\":\"true\",\"arn\":\"$${ARN}\"}"
       fi
     EOT
   ]
