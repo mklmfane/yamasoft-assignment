@@ -67,11 +67,14 @@ module "github-oidc" {
   lock_table_name          = module.s3-bucket-state-oidc.lock_table_name
   region                   = var.region
 
-  repositories              = var.repository_list
+  repositories             = var.repository_list
   oidc_role_attach_policies = [
     module.iam-tf-policies.tf_backend_rw_policy_arn,
     module.iam-tf-policies.tf_vpc_apply_policy_arn
   ]
+
+  existing_oidc_provider_arn = var.existing_oidc_provider_arn
+  existing_role_arn          = var.existing_role_arn
 
   depends_on = [
     module.iam-tf-policies

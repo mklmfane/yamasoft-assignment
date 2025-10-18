@@ -1,16 +1,44 @@
+variable "existing_backend_rw_policy_arn" {
+  description = "ARN of an existing OIDC provider (if any)."
+  type        = string
+  default     = ""
+}
+
+variable "existing_vpc_apply_policy_arn" {
+  description = "ARN of an existing IAM role (if any)."
+  type        = string
+  default     = ""
+}
+
+# Declare variable for existing OIDC provider ARN
+variable "existing_oidc_provider_arn" {
+  description = "ARN of an existing OIDC provider (if any)."
+  type        = string
+  default     = ""
+}
+
+# Declare variable for existing Role ARN
+variable "existing_role_arn" {
+  description = "ARN of an existing IAM role (if any)."
+  type        = string
+  default     = ""
+}
+
+# Declare other existing variables as needed
+
+
 variable "bucket_name" {
-  description = "The name of the S3 bucket used for Terraform state."
+  description = "The name of the S3 bucket."
   type        = string
 }
 
-
 variable "lock_table_name" {
-  description = "The DynamoDB lock table name for Terraform state locking."
+  description = "The name of the DynamoDB lock table."
   type        = string
 }
 
 variable "region" {
-  description = "The AWS region where resources will be created."
+  description = "The AWS region."
   type        = string
 }
 
@@ -26,16 +54,11 @@ variable "create_oidc_role" {
   default     = true
 }
 
-variable "existing_oidc_provider_arn" {
-  description = "ARN of an existing OIDC provider (if any)."
-  type        = string
-  default     = ""
-}
 
-variable "existing_role_arn" {
-  description = "ARN of an existing IAM role (if any)."
-  type        = string
-  default     = ""
+variable "repositories" {
+  description = "List of GitHub repository names."
+  type        = list(string)
+  default     = []
 }
 
 variable "oidc_role_attach_policies" {
@@ -54,12 +77,6 @@ variable "role_description" {
   description = "Description of the role."
   type        = string
   default     = "Role assumed by the GitHub OIDC provider."
-}
-
-variable "repositories" {
-  description = "List of GitHub repository names."
-  type        = list(string)
-  default     = []
 }
 
 variable "github_thumbprint" {

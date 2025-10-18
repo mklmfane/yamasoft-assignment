@@ -1,51 +1,26 @@
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = ">= 5.0"
-    }
-  }
-}
-
-# Needed to build the DynamoDB ARN with the correct account id
-data "aws_caller_identity" "current" {}
-
 locals {
-  github_oidc_url     = "https://token.actions.githubusercontent.com"
-  bucket_arn          = "arn:aws:s3:::${var.bucket_name}"
-  bucket_objects      = "arn:aws:s3:::${var.bucket_name}/*"
-  dynamodb_tbl_arn    = "arn:aws:dynamodb:${var.region}:${data.aws_caller_identity.current.account_id}:table/${var.lock_table_name}"
-
-  # Check if existing OIDC provider ARN and role ARN are provided
   provider_exists_hint = length(trimspace(var.existing_oidc_provider_arn)) > 0
   role_exists_hint     = length(trimspace(var.existing_role_arn)) > 0
 
-  # Create OIDC provider and role only if not already existing
   create_provider = var.create_oidc_provider && !local.provider_exists_hint
   create_role     = var.create_oidc_role && !local.role_exists_hint
 }
 
-# -----------------------------------------------------------------------------
 # Detect if OIDC provider exists
-# -----------------------------------------------------------------------------
 data "aws_iam_openid_connect_provider" "existing" {
   count = length(var.existing_oidc_provider_arn) > 0 ? 1 : 0
   arn   = var.existing_oidc_provider_arn
 }
 
-# -----------------------------------------------------------------------------
 # Create OIDC provider (only if not already exists)
-# -----------------------------------------------------------------------------
 resource "aws_iam_openid_connect_provider" "this" {
-  count           = local.create_provider ? 1 : 0
+  count           = var.create_oidc_provider ? 1 : 0
   client_id_list  = ["sts.amazonaws.com"]
   thumbprint_list = [var.github_thumbprint]
   url             = "https://token.actions.githubusercontent.com"
 }
 
-# -----------------------------------------------------------------------------
 # Trust Policy for Role
-# -----------------------------------------------------------------------------
 data "aws_iam_policy_document" "assume_role" {
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
@@ -70,26 +45,14 @@ data "aws_iam_policy_document" "assume_role" {
   }
 }
 
-# -----------------------------------------------------------------------------
 # Role (create only if missing)
-# -----------------------------------------------------------------------------
 resource "aws_iam_role" "this" {
-  count                = local.create_provider ? 1 : 0
+  count                = var.create_oidc_role ? 1 : 0
   name                 = var.role_name
   description          = var.role_description
   max_session_duration = var.max_session_duration
   assume_role_policy   = data.aws_iam_policy_document.assume_role.json
   tags                 = var.tags
-}
-
-# -----------------------------------------------------------------------------
-# Attach Role Policies
-# -----------------------------------------------------------------------------
-resource "aws_iam_role_policy_attachment" "attach" {
-  count      = length(var.oidc_role_attach_policies)
-  policy_arn = var.oidc_role_attach_policies[count.index]
-  role       = aws_iam_role.this[0].name
-  depends_on = [aws_iam_role.this]
 }
 
 # -----------------------------------------------------------------------------
