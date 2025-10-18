@@ -120,7 +120,7 @@ data "external" "oidc_role_probe" {
     "bash", "-c", <<-EOT
       set -euo pipefail
       ROLE_NAME="${var.role_name}"
-      ROLE_ARN=$(aws iam get-role --role-name "$ROLE_NAME" --query 'Role.Arn' --output text)
+      ROLE_ARN=$(aws iam get-role --role-name "$ROLE_NAME" --query 'Role.Arn' --output text 2>/dev/null || echo "null")
       if [ "$ROLE_ARN" != "None" ] && [ "$ROLE_ARN" != "null" ]; then
         echo "{\"arn\":\"$ROLE_ARN\"}"
       else
