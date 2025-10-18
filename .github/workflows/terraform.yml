@@ -127,21 +127,20 @@ jobs:
       - name: Restore S3 backend files
         run: |
           set -euo pipefail
-          if [ -d .ci-backend-stash ]; then
-            for f in .ci-backend-stash/*; do
-              # Recreate the original path from the encoded filename
-              # Since we encoded '/' as '_' above, restore to repo root with original basename if unique:
-              # If you have multiple backend files in subdirs, prefer a simpler approach: mv .ci-backend-stash/* .
-              # (Most repos have only one backend block in root.)
-              bn=$(basename "$f")
-              # Default: drop into repo root
-              dest="./${bn//_//}"
-              # If that path is weird, just place in repo root as original basename
-              mkdir -p "$(dirname "$dest")" || true
-              mv "$f" "$dest" 2>/dev/null || mv "$f" .
-            done
-            rmdir .ci-backend-stash || true
+          if [ ! -f .ci-backend-stash/manifest.txt ]; then
+            echo "Nothing to restore."
+            exit 0
           fi
+
+          i=0
+          while IFS= read -r dest; do
+            echo "Restoring to $dest"
+            mkdir -p "$(dirname "$dest")"
+            mv ".ci-backend-stash/file_${i}" "$dest"
+            i=$((i+1))
+          done < .ci-backend-stash/manifest.txt
+
+          rm -rf .ci-backend-stash  
 
     outputs:
       bucket:       ${{ steps.out.outputs.bucket }}
