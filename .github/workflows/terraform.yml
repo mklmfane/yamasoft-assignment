@@ -1,0 +1,181 @@
+name: Terraform
+
+on:
+  workflow_dispatch:
+    inputs:
+      do_apply:
+        description: "Run full terraform apply after bootstrap"
+        required: true
+        default: "true"
+        type: choice
+        options: ["true","false"]
+      do_destroy:
+        description: "Run terraform destroy (manual only)"
+        required: true
+        default: "false"
+        type: choice
+        options: ["true","false"]
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["*"]
+
+permissions:
+  id-token: write     # OIDC
+  contents: read
+
+env:
+  TF_IN_AUTOMATION: "true"
+  AWS_REGION: eu-west-1
+
+  # Defaults; will be *overwritten* after bootstrap by module outputs
+  TF_BACKEND_BUCKET: tf-state-bucket-PLACEHOLDER
+  TF_BACKEND_KEY: infra/terraform.tfstate
+  TF_BACKEND_USE_LOCKFILE: "true"
+
+  # Default/fallback; will be *overwritten* by module output if exported
+  AWS_OIDC_ROLE_ARN: arn:aws:iam::049419512437:role/github-oidc-provider-aws
+
+jobs:
+  terraform:
+    name: Bootstrap ➜ Migrate backend ➜ Plan/Apply
+    runs-on: ubuntu-latest
+
+    concurrency:
+      group: terraform-${{ github.ref }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_OIDC_ROLE_ARN }}
+          role-session-name: gha-terraform
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.13.3
+          terraform_wrapper: false
+
+      - name: Cache .terraform providers
+        uses: actions/cache@v4
+        with:
+          path: |
+            **/.terraform
+            ~/.terraform.d/plugin-cache
+          key: ${{ runner.os }}-tf-${{ hashFiles('**/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-tf-
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive
+
+      # -----------------------
+      # Phase 1: BOOTSTRAP (local state, no backend)
+      # -----------------------
+      - name: Init with *local* backend (disable remote)
+        run: terraform init -backend=false -input=false
+
+      - name: Bootstrap apply (bucket + policies + OIDC role)
+        run: |
+          set -euo pipefail
+          terraform apply \
+            -input=false \
+            -auto-approve \
+            -target=module.s3-bucket-state-oidc \
+            -target=module.iam-tf-policies \
+            -target=module.github-oidc
+
+      - name: Read bootstrap outputs ➜ export env
+        id: bootstrap_outputs
+        run: |
+          set -euo pipefail
+
+          # Get raw JSON of outputs
+          tfjson=$(terraform output -json)
+
+          # Try to read expected outputs from your modules
+          # Adjust keys if your module exposes different names.
+          BUCKET=$(echo "$tfjson" | jq -r '.s3_bucket_id.value // empty')
+          KEY=$(echo "$tfjson" | jq -r '.backend_key.value // empty')
+          USE_LOCKFILE=$(echo "$tfjson" | jq -r '.use_lockfile.value // empty')
+          ROLE_ARN=$(echo "$tfjson" | jq -r '.github_oidc_role_arn.value // empty')
+
+          # Fallbacks if output keys aren't present
+          [ -z "$BUCKET" ] && BUCKET="${TF_BACKEND_BUCKET}"
+          [ -z "$KEY" ] && KEY="${TF_BACKEND_KEY}"
+          [ -z "$USE_LOCKFILE" ] && USE_LOCKFILE="${TF_BACKEND_USE_LOCKFILE}"
+          [ -z "$ROLE_ARN" ] && ROLE_ARN="${AWS_OIDC_ROLE_ARN}"
+
+          echo "TF_BACKEND_BUCKET=$BUCKET" >> "$GITHUB_ENV"
+          echo "TF_BACKEND_KEY=$KEY" >> "$GITHUB_ENV"
+          echo "TF_BACKEND_USE_LOCKFILE=$USE_LOCKFILE" >> "$GITHUB_ENV"
+          echo "AWS_OIDC_ROLE_ARN=$ROLE_ARN" >> "$GITHUB_ENV"
+
+          echo "bucket=$BUCKET" >> "$GITHUB_OUTPUT"
+          echo "key=$KEY" >> "$GITHUB_OUTPUT"
+          echo "use_lockfile=$USE_LOCKFILE" >> "$GITHUB_OUTPUT"
+          echo "role_arn=$ROLE_ARN" >> "$GITHUB_OUTPUT"
+
+      - name: Reconfigure AWS creds if role has changed
+        if: steps.bootstrap_outputs.outputs.role_arn != env.AWS_OIDC_ROLE_ARN
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ steps.bootstrap_outputs.outputs.role_arn }}
+          role-session-name: gha-terraform-reconfigured
+
+      # -----------------------
+      # Phase 2: MIGRATE state to S3 backend (no prompts)
+      # -----------------------
+      - name: Init S3 backend + migrate state
+        run: |
+          terraform init \
+            -migrate-state \
+            -input=false \
+            -backend-config="bucket=${TF_BACKEND_BUCKET}" \
+            -backend-config="key=${TF_BACKEND_KEY}" \
+            -backend-config="region=${AWS_REGION}" \
+            -backend-config="use_lockfile=${TF_BACKEND_USE_LOCKFILE}"
+
+      - name: Terraform validate
+        run: terraform validate -no-color
+
+      # -----------------------
+      # PRs: PLAN only
+      # -----------------------
+      - name: Terraform plan (PR)
+        if: github.event_name == 'pull_request'
+        run: terraform plan -input=false -no-color -out=tfplan.bin
+
+      - name: Upload plan (PR)
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: tfplan.bin
+          retention-days: 3
+
+      # -----------------------
+      # Non-PRs: Full plan/apply by default
+      # -----------------------
+      - name: Terraform plan (apply path)
+        if: github.event_name != 'pull_request'
+        run: terraform plan -input=false -no-color
+
+      - name: Terraform apply
+        if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.do_apply == 'true')
+        run: terraform apply -input=false -auto-approve
+
+      # Manual destroy only (via dispatch do_destroy=true)
+      - name: Terraform destroy (manual only)
+        if: github.event_name == 'workflow_dispatch' && inputs.do_destroy == 'true'
+        run: terraform destroy -input=false -auto-approve
