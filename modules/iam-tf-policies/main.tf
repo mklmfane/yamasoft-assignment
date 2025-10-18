@@ -7,7 +7,7 @@ terraform {
   }
 }
 
-# Needed to build the DynamoDB ARN with correct account id
+# Needed to build the DynamoDB ARN with the correct account id
 data "aws_caller_identity" "current" {}
 
 locals {
@@ -18,13 +18,20 @@ locals {
   # Did caller provide ARNs?
   provided_backend_rw = length(trimspace(var.existing_backend_rw_policy_arn)) > 0
   provided_vpc_apply  = length(trimspace(var.existing_vpc_apply_policy_arn))  > 0
+
+  # Combine both checks for policy existence and creation
+  provided_backend_rw_exists = local.provided_backend_rw ? (try(data.external.check_backend_rw[0].result.exists, "false") == "true") : false
+  provided_vpc_apply_exists  = local.provided_vpc_apply ? (try(data.external.check_vpc_apply[0].result.exists, "false") == "true") : false
+
+  create_backend_rw = !local.provided_backend_rw_exists
+  create_vpc_apply  = !local.provided_vpc_apply_exists
 }
 
 # If an ARN was provided, check that it actually exists. (Requires AWS CLI)
 data "external" "check_backend_rw" {
   count   = local.provided_backend_rw ? 1 : 0
   program = [
-    "bash","-c",
+    "bash", "-c",
     "aws iam get-policy --policy-arn ${var.existing_backend_rw_policy_arn} >/dev/null 2>&1 && echo '{\"exists\":\"true\"}' || echo '{\"exists\":\"false\"}'"
   ]
 }
@@ -32,18 +39,9 @@ data "external" "check_backend_rw" {
 data "external" "check_vpc_apply" {
   count   = local.provided_vpc_apply ? 1 : 0
   program = [
-    "bash","-c",
+    "bash", "-c",
     "aws iam get-policy --policy-arn ${var.existing_vpc_apply_policy_arn} >/dev/null 2>&1 && echo '{\"exists\":\"true\"}' || echo '{\"exists\":\"false\"}'"
   ]
-}
-
-locals {
-  provided_backend_rw_exists = local.provided_backend_rw ? (try(data.external.check_backend_rw[0].result.exists, "false") == "true") : false
-  provided_vpc_apply_exists  = local.provided_vpc_apply  ? (try(data.external.check_vpc_apply[0].result.exists,  "false") == "true") : false
-
-  # Create only if the provided ARN is missing (or no ARN was provided)
-  create_backend_rw = !local.provided_backend_rw_exists
-  create_vpc_apply  = !local.provided_vpc_apply_exists 
 }
 
 # Check if the backend policy exists
@@ -56,11 +54,6 @@ data "aws_iam_policy" "backend_rw" {
 data "aws_iam_policy" "vpc_apply" {
   count = length(var.existing_vpc_apply_policy_arn) > 0 ? 1 : 0
   arn   = var.existing_vpc_apply_policy_arn
-}
-
-locals {
-  create_backend_rw = length(var.existing_backend_rw_policy_arn) == 0 || data.aws_iam_policy.backend_rw[0].arn == ""
-  create_vpc_apply  = length(var.existing_vpc_apply_policy_arn) == 0 || data.aws_iam_policy.vpc_apply[0].arn == ""
 }
 
 # Create the IAM policy for backend rw if it doesn't already exist
@@ -88,7 +81,6 @@ resource "aws_iam_policy" "tf_backend_rw" {
   })
 }
 
-
 # Create the IAM policy for VPC apply if it doesn't already exist
 resource "aws_iam_policy" "tf_vpc_apply" {
   count = local.create_vpc_apply ? 1 : 0
@@ -108,3 +100,4 @@ resource "aws_iam_policy" "tf_vpc_apply" {
     ]
   })
 }
+
