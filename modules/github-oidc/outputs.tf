@@ -7,3 +7,8 @@ output "oidc_role" {
   description = "CICD GitHub role."
   value       = try(aws_iam_role.this[0].arn, "")
 }
+
+output "role_arn" {
+  # When create_oidc_role = true -> index 0 exists; otherwise return null (or a var if you pass one)
+  value = try(aws_iam_role.this[0].arn, null)
+}
