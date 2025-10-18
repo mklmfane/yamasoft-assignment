@@ -6,7 +6,7 @@ variable "bucket_suffix_name" {
 variable "lock_table" {
   description = "dynamodb lock table"
   type        = string   
-  default     = "tf-locks" 
+  default     = "" 
 }
 
 variable "create_lock_table" {

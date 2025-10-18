@@ -74,9 +74,22 @@ resource "aws_s3_bucket_lifecycle_configuration" "tf_state" {
   }
 }
 
+# Probe existence using AWS CLI (must have creds in env)
+data "external" "lock_table_probe" {
+  count   = var.lock_table == "" ? 0 : 1
+  program = [
+    "bash", "-c",
+    "aws dynamodb describe-table --table-name ${var.lock_table} >/dev/null 2>&1 && echo '{\"exists\":\"true\"}' || echo '{\"exists\":\"false\"}'"
+  ]
+}
+
+locals {
+  lock_table_exists = var.lock_table == "" ? false : try(data.external.lock_table_probe[0].result.exists, "false") == "true"
+}
+
 # DynamoDB table for state locking
 resource "aws_dynamodb_table" "tf_locks" {
-  count        = var.create_lock_table ? 1 : 0
+  count        = (var.lock_table != "" && !local.lock_table_exists) ? 1 : 0
   name         = var.lock_table
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "LockID"
