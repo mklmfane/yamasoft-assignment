@@ -71,18 +71,25 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .ci-backend-stash
-          # Stash any files which declare backend "s3"
-          matches=$(grep -Rl --exclude-dir=.ci-backend-stash 'backend *"s3"' . || true)
-          if [ -n "$matches" ]; then
-            echo "$matches" | while read -r f; do
-              # Keep relative paths, but store a copy in stash with path encoded
-              dest=".ci-backend-stash/$(echo "$f" | sed 's#[/ ]#_#g')"
-              echo "Stashing backend from $f -> $dest"
-              mv "$f" "$dest"
-            done
-          else
-            echo "No backend \"s3\" blocks found to stash."
+
+          # find backend "s3" in TF files (skip the stash dir itself)
+          mapfile -t files < <(grep -Rl --include='*.tf' --include='*.tf.json' 'backend *"s3"' . | grep -v '^./\.ci-backend-stash/' || true)
+
+          if [ ${#files[@]} -eq 0 ]; then
+                echo "No backend \"s3\" blocks found to stash."
+                exit 0
           fi
+
+          # record original paths
+          printf '%s\n' "${files[@]}" > .ci-backend-stash/manifest.txt
+
+          i=0
+          for f in "${files[@]}"; do
+                echo "Stashing $f"
+                cp "$f" ".ci-backend-stash/file_${i}"
+                rm "$f"
+                i=$((i+1))
+          done  
 
       - name: Terraform init (local backend via fallback)
         run: terraform init -reconfigure -input=false
