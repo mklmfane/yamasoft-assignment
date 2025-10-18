@@ -343,7 +343,7 @@ module "wrapper" {
   public_subnet_tags                                           = try(each.value.public_subnet_tags, var.defaults.public_subnet_tags, {})
   public_subnet_tags_per_az                                    = try(each.value.public_subnet_tags_per_az, var.defaults.public_subnet_tags_per_az, {})
   public_subnets                                               = try(each.value.public_subnets, var.defaults.public_subnets, [])
-  putin_khuylo                                                 = try(each.value.putin_khuylo, var.defaults.putin_khuylo, true)
+
   redshift_acl_tags                                            = try(each.value.redshift_acl_tags, var.defaults.redshift_acl_tags, {})
   redshift_dedicated_network_acl                               = try(each.value.redshift_dedicated_network_acl, var.defaults.redshift_dedicated_network_acl, false)
   redshift_inbound_acl_rules = try(each.value.redshift_inbound_acl_rules, var.defaults.redshift_inbound_acl_rules, [

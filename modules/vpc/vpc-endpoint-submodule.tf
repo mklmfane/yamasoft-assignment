@@ -3,7 +3,10 @@ module "vpc_endpoints" {
 
   vpc_id             = aws_vpc.this[0].id
   security_group_ids = [aws_default_security_group.this[0].id]   # used by Interface endpoints
-  subnet_ids         = aws_subnet.private[*].id                  # used by Interface endpoints
+  subnet_ids = [
+    aws_subnet.private[0].id,
+    aws_subnet.private[1].id,
+  ]
 
   endpoints = {
     ssm = {
@@ -24,3 +27,4 @@ module "vpc_endpoints" {
     Terraform   = "true"
   }
 }
+

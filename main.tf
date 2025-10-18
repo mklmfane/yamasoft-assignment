@@ -1,12 +1,12 @@
 module "vpc" {
   source = "./modules/vpc"
 
-  name = "my-vpc-tf-test"
+  name = var.vpc_name
   cidr = "172.16.0.0/16"
 
   azs = ["eu-west-1a", "eu-west-1b"]
 
-  # 4 private subnets (2 per AZ)
+
   private_subnets = [
     "172.16.0.0/20", 
     "172.16.16.0/20", 
@@ -14,7 +14,7 @@ module "vpc" {
     "172.16.48.0/20",
   ]
 
-  # 4 public subnets (2 per AZ)
+
   public_subnets = [
     "172.16.64.0/20",
     "172.16.80.0/20",  
@@ -23,7 +23,7 @@ module "vpc" {
   ]
 
   enable_nat_gateway = true
-  # if you want one NAT per AZ:
+ 
   one_nat_gateway_per_az = true
   single_nat_gateway     = false
 
@@ -31,4 +31,17 @@ module "vpc" {
     Terraform   = "true"
     Environment = "dev"
   }
+}
+
+module "github-oidc" {
+  source  = "./modules/github-oidc"
+
+  create_oidc_provider = true  # set true only during bootstrap with admin creds
+  create_oidc_role     = true
+
+  repositories = var.repository_list
+  oidc_role_attach_policies = [
+    aws_iam_policy.tf_backend_rw.arn,
+    aws_iam_policy.tf_vpc_apply.arn
+  ]
 }
