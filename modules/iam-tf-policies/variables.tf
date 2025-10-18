@@ -34,6 +34,7 @@ variable "tags" {
   }
 }
 
+# Optionally provide the ARNs for existing policies to skip creation
 variable "existing_backend_rw_policy_arn" {
   description = "If set, skip creating tf-backend-rw and use this ARN."
   type        = string
