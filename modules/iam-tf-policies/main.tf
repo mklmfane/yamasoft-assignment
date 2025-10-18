@@ -106,7 +106,7 @@ resource "aws_iam_policy" "tf_backend_rw" {
 }
 
 resource "aws_iam_policy" "tf_vpc_apply" {
-  local.create_vpc_apply ? 1 : 0
+   count = local.create_vpc_apply ? 1 : 0
 
   name = var.policy_name_vpc_apply
   tags = var.tags
