@@ -1,3 +1,19 @@
+variable "bucket_name" {
+  description = "The name of the S3 bucket used for Terraform state."
+  type        = string
+}
+
+
+variable "lock_table_name" {
+  description = "The DynamoDB lock table name for Terraform state locking."
+  type        = string
+}
+
+variable "region" {
+  description = "The AWS region where resources will be created."
+  type        = string
+}
+
 variable "create_oidc_provider" {
   description = "Whether to create the OIDC provider (auto-disabled if one matching the URL already exists)."
   type        = bool

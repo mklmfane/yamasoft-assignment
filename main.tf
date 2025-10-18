@@ -63,6 +63,10 @@ module "github-oidc" {
   create_oidc_provider      = true  # Can be set to false if an existing provider ARN is given
   create_oidc_role          = true  # Can be set to false if an existing role ARN is given
 
+  bucket_name              = module.s3-bucket-state-oidc.s3_bucket_id
+  lock_table_name          = module.s3-bucket-state-oidc.lock_table_name
+  region                   = var.region
+
   repositories              = var.repository_list
   oidc_role_attach_policies = [
     module.iam-tf-policies.tf_backend_rw_policy_arn,

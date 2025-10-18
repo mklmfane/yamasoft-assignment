@@ -129,4 +129,3 @@ data "external" "oidc_role_probe" {
     EOT
   ]
 }
-
