@@ -8,8 +8,3 @@ variable "lock_table" {
   type        = string   
   default     = "" 
 }
-
-variable "create_lock_table" {
-  type    = bool
-  default = false
-}

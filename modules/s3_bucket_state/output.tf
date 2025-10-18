@@ -5,6 +5,8 @@ output "s3_bucket_id" {
 }
 
 output "lock_table_name" {
-  description = "Dynamodb lock table"
-  value       = aws_dynamodb_table.tf_locks[0].name
+  description = "Name of the DynamoDB state lock table (existing or created)."
+  value = var.lock_table != ""
+    ? var.lock_table
+    : (length(aws_dynamodb_table.tf_locks) > 0 ? aws_dynamodb_table.tf_locks[0].name : null)
 }
