@@ -1,3 +1,9 @@
+locals {
+  github_oidc_provider_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
+}
+
+data "aws_caller_identity" "current" {}
+
 module "vpc" {
   source = "./modules/vpc"
 
@@ -55,16 +61,20 @@ module "iam-tf-policies" {
 module "github-oidc" {
   source  = "./modules/github-oidc"
 
-  create_oidc_provider       = true
+  create_oidc_provider       = false
+  oidc_provider_arn          = local.github_oidc_provider_arn
   create_oidc_role           = true
-  repositories               = var.repository_list
   oidc_role_attach_policies  = [
     module.iam-tf-policies.tf_backend_rw_policy_arn,
     module.iam-tf-policies.tf_vpc_apply_policy_arn
   ]
-
+  
+  repositories               = var.repository_list
+  
   depends_on = [
     module.iam-tf-policies
   ]
 }
+
+
 
