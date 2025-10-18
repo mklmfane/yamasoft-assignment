@@ -6,5 +6,5 @@ output "s3_bucket_id" {
 
 output "lock_table_name" {
   description = "Dynamodb lock table"
-  value       = aws_dynamodb_table.tf_locks.name
+  value       = aws_dynamodb_table.tf_locks[0].name
 }
