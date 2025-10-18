@@ -4,45 +4,22 @@ variable "create_oidc_provider" {
   default     = true
 }
 
-variable "oidc_provider_arn" {
-  description = "If you already have a provider, set its ARN to force using it."
-  type        = string
-  default     = ""
-}
-
 variable "create_oidc_role" {
   description = "Whether to create the OIDC role (auto-disabled if a role with the same name already exists)."
   type        = bool
   default     = true
 }
 
-variable "github_thumbprint" {
-  description = "GitHub OpenID TLS certificate thumbprint."
+variable "existing_oidc_provider_arn" {
+  description = "ARN of an existing OIDC provider (if any)."
   type        = string
-  default     = "6938fd4d98bab03faadb97b34396831e3780aea1"
+  default     = ""
 }
 
-variable "repositories" {
-  description = "List of GitHub org/repo names allowed to assume the role."
-  type        = list(string)
-  default     = []
-  validation {
-    condition = length([
-      for repo in var.repositories : 1
-      if length(regexall("^[A-Za-z0-9_.-]+?/([A-Za-z0-9_.:/-]+|\\*)$", repo)) > 0
-    ]) == length(var.repositories)
-    error_message = "Repositories must be in organization/repository format."
-  }
-}
-
-variable "max_session_duration" {
-  description = "Maximum session duration in seconds."
-  type        = number
-  default     = 3600
-  validation {
-    condition     = var.max_session_duration >= 3600 && var.max_session_duration <= 43200
-    error_message = "Maximum session duration must be between 3600 and 43200 seconds."
-  }
+variable "existing_role_arn" {
+  description = "ARN of an existing IAM role (if any)."
+  type        = string
+  default     = ""
 }
 
 variable "oidc_role_attach_policies" {
@@ -51,14 +28,8 @@ variable "oidc_role_attach_policies" {
   default     = []
 }
 
-variable "tags" {
-  description = "Tags for created resources."
-  type        = map(string)
-  default     = {}
-}
-
 variable "role_name" {
-  description = "Friendly name of the role (used to probe existence)."
+  description = "Friendly name of the role."
   type        = string
   default     = "github-oidc-provider-aws"
 }
@@ -69,14 +40,30 @@ variable "role_description" {
   default     = "Role assumed by the GitHub OIDC provider."
 }
 
-variable "existing_oidc_provider_arn" {
-  description = "If set, provider already exists; module will not create a new one."
-  type        = string
-  default     = ""
+variable "repositories" {
+  description = "List of GitHub repository names."
+  type        = list(string)
+  default     = []
 }
 
-variable "existing_role_arn" {
-  description = "If set, role already exists; module will not create a new one."
+variable "github_thumbprint" {
+  description = "GitHub OpenID certificate thumbprint."
   type        = string
-  default     = ""
+  default     = "6938fd4d98bab03faadb97b34396831e3780aea1"
+}
+
+variable "tags" {
+  description = "Tags to assign to created resources."
+  type        = map(string)
+  default     = {}
+}
+
+variable "max_session_duration" {
+  description = "Maximum session duration in seconds."
+  type        = number
+  default     = 3600
+  validation {
+    condition     = var.max_session_duration >= 3600 && var.max_session_duration <= 43200
+    error_message = "Maximum session duration must be between 3600 and 43200 seconds."
+  }
 }

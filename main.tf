@@ -1,7 +1,3 @@
-locals {
-  github_oidc_provider_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
-}
-
 data "aws_caller_identity" "current" {}
 
 module "vpc" {
@@ -53,7 +49,7 @@ module "iam-tf-policies" {
   #existing_backend_rw_policy_arn = "arn:aws:iam::049419512437:policy/tf-backend-rw"
   #existing_vpc_apply_policy_arn = "arn:aws:iam::049419512437:policy/tf-vpc-apply"
 
-  existing_backend_rw_policy_arn = ""  # or the real ARN if you’re sure it exists
+  existing_backend_rw_policy_arn = ""  # or the real ARN if you are sure it exists
   existing_vpc_apply_policy_arn  = ""
 
   # ensure bucket/table exist first
@@ -61,31 +57,11 @@ module "iam-tf-policies" {
 }
 
 
-#module "github-oidc" {
-#  source  = "./modules/github-oidc"
-
-#  create_oidc_provider       = false
-#  oidc_provider_arn          = local.github_oidc_provider_arn
-#  create_oidc_role           = true
-#  oidc_role_attach_policies  = [
-#    module.iam-tf-policies.tf_backend_rw_policy_arn,
-#    module.iam-tf-policies.tf_vpc_apply_policy_arn
-#  ]
-#  
-#  repositories               = var.repository_list
-  
-#  depends_on = [
-#    module.iam-tf-policies
-#  ]
-#}
-
 module "github-oidc" {
   source = "./modules/github-oidc"
 
-  create_oidc_provider      = true  # workflow may flip to false if it finds one
-  create_oidc_role          = true  # workflow may flip to false if it finds one
-  existing_oidc_provider_arn= var.existing_oidc_provider_arn
-  existing_role_arn         = var.existing_role_arn
+  create_oidc_provider      = true  # Can be set to false if an existing provider ARN is given
+  create_oidc_role          = true  # Can be set to false if an existing role ARN is given
 
   repositories              = var.repository_list
   oidc_role_attach_policies = [
@@ -97,4 +73,3 @@ module "github-oidc" {
     module.iam-tf-policies
   ]
 }
-

@@ -7,30 +7,42 @@ terraform {
   }
 }
 
-
-
-# -----------------------------------------------------------------------------
-# Probes (AWS CLI) safe in CI; avoids hard failures of data sources.
-# -----------------------------------------------------------------------------
-
-
 locals {
   github_oidc_url = "https://token.actions.githubusercontent.com"
 
+  # Check if existing OIDC provider ARN and role ARN are provided
   provider_exists_hint = length(trimspace(var.existing_oidc_provider_arn)) > 0
   role_exists_hint     = length(trimspace(var.existing_role_arn)) > 0
 
+  # Create OIDC provider and role only if not already existing
   create_provider = var.create_oidc_provider && !local.provider_exists_hint
-  create_role     = var.create_oidc_role     && !local.role_exists_hint
+  create_role     = var.create_oidc_role && !local.role_exists_hint
+
+  # Use the "aws_iam_openid_connect_provider" data source to detect if the provider exists.
+  provider_exists = length(trimspace(var.existing_oidc_provider_arn)) > 0 || try(data.aws_iam_openid_connect_provider.existing[0].arn, "") != ""
 }
 
+# -----------------------------------------------------------------------------
+# Detect if OIDC provider exists
+# -----------------------------------------------------------------------------
+data "aws_iam_openid_connect_provider" "existing" {
+  count = length(var.existing_oidc_provider_arn) > 0 ? 1 : 0
+  arn   = var.existing_oidc_provider_arn
+}
+
+# -----------------------------------------------------------------------------
+# Create OIDC provider (only if not already exists)
+# -----------------------------------------------------------------------------
 resource "aws_iam_openid_connect_provider" "this" {
   count           = local.create_provider ? 1 : 0
   client_id_list  = ["sts.amazonaws.com"]
   thumbprint_list = [var.github_thumbprint]
-  url             = local.github_oidc_url
+  url             = "https://token.actions.githubusercontent.com"
 }
 
+# -----------------------------------------------------------------------------
+# Trust Policy for Role
+# -----------------------------------------------------------------------------
 data "aws_iam_policy_document" "assume_role" {
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
@@ -48,33 +60,64 @@ data "aws_iam_policy_document" "assume_role" {
     principals {
       type = "Federated"
       identifiers = [
-        # prefer newly created provider, else the known-existing one, else optional var.oidc_provider_arn
         try(aws_iam_openid_connect_provider.this[0].arn, ""),
         var.existing_oidc_provider_arn,
-        var.oidc_provider_arn,
       ]
     }
   }
 }
 
+# -----------------------------------------------------------------------------
+# Role (create only if missing)
+# -----------------------------------------------------------------------------
 resource "aws_iam_role" "this" {
-  count                = local.create_role ? 1 : 0
+  count                = local.create_provider ? 1 : 0
   name                 = var.role_name
   description          = var.role_description
   max_session_duration = var.max_session_duration
   assume_role_policy   = data.aws_iam_policy_document.assume_role.json
   tags                 = var.tags
-  depends_on           = [aws_iam_openid_connect_provider.this]
 }
 
-# Attach to the *effective* role name: if existing, use var.role_name (same name); else created one has same name.
-locals {
-  effective_role_name = var.role_name
-}
-
+# -----------------------------------------------------------------------------
+# Attach Role Policies
+# -----------------------------------------------------------------------------
 resource "aws_iam_role_policy_attachment" "attach" {
   count      = length(var.oidc_role_attach_policies)
   policy_arn = var.oidc_role_attach_policies[count.index]
-  role       = local.effective_role_name
+  role       = aws_iam_role.this[0].name
   depends_on = [aws_iam_role.this]
+}
+
+
+data "external" "oidc_provider_probe" {
+  program = [
+    "bash", "-c", <<-EOT
+      set -euo pipefail
+      PROVIDER_ARN=$(aws iam list-open-id-connect-providers --query 'OpenIDConnectProviderList[].Arn' --output text)
+      for ARN in $PROVIDER_ARN; do
+        URL=$(aws iam get-open-id-connect-provider --open-id-connect-provider-arn "$ARN" --query 'Url' --output text)
+        if [ "$URL" = "https://token.actions.githubusercontent.com" ]; then
+          echo "{\"arn\":\"$ARN\"}"
+          exit 0
+        fi
+      done
+      echo "{\"arn\":\"\"}"
+    EOT
+  ]
+}
+
+data "external" "oidc_role_probe" {
+  program = [
+    "bash", "-c", <<-EOT
+      set -euo pipefail
+      ROLE_NAME="${var.role_name}"
+      ROLE_ARN=$(aws iam get-role --role-name "$ROLE_NAME" --query 'Role.Arn' --output text)
+      if [ "$ROLE_ARN" != "None" ] && [ "$ROLE_ARN" != "null" ]; then
+        echo "{\"arn\":\"$ROLE_ARN\"}"
+      else
+        echo "{\"arn\":\"\"}"
+      fi
+    EOT
+  ]
 }

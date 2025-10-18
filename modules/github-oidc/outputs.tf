@@ -1,14 +1,14 @@
 output "oidc_provider_arn" {
-  value = coalesce(
-    try(aws_iam_openid_connect_provider.this[0].arn, null),
-    length(var.existing_oidc_provider_arn) > 0 ? var.existing_oidc_provider_arn : null,
-    length(var.oidc_provider_arn) > 0 ? var.oidc_provider_arn : null
-  )
+  description = "The ARN of the OIDC provider."
+  value       = try(data.external.oidc_provider_probe.result.arn, null)
+}
+
+output "oidc_role" {
+  description = "The ARN of the OIDC role."
+  value       = try(data.external.oidc_role_probe.result.arn, null)
 }
 
 output "role_arn" {
-  value = coalesce(
-    try(aws_iam_role.this[0].arn, null),
-    length(var.existing_role_arn) > 0 ? var.existing_role_arn : null
-  )
+  description = "The ARN of the IAM role."
+  value       = try(data.external.oidc_role_probe.result.arn, null)
 }
