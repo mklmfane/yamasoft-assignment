@@ -34,7 +34,8 @@ module "s3-bucket-state-oidc" {
   source  = "./modules/s3_bucket_state"
 
   bucket_suffix_name = var.bucket_suffix_name
-  lock_table = var.lock_table
+  lock_table         = var.lock_table
+  create_lock_table  = false
 }
 
 module "iam-tf-policies" {

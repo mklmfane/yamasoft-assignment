@@ -76,6 +76,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "tf_state" {
 
 # DynamoDB table for state locking
 resource "aws_dynamodb_table" "tf_locks" {
+  count        = var.create_lock_table ? 1 : 0
   name         = var.lock_table
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "LockID"
