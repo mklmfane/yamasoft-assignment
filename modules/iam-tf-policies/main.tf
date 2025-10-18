@@ -14,9 +14,51 @@ locals {
   bucket_arn       = "arn:aws:s3:::${var.bucket_name}"
   bucket_objects   = "arn:aws:s3:::${var.bucket_name}/*"
   dynamodb_tbl_arn = "arn:aws:dynamodb:${var.region}:${data.aws_caller_identity.current.account_id}:table/${var.lock_table_name}"
+
+  policy_names = {
+    tf_backend_rw = var.policy_name_backend_rw
+    tf_vpc_apply  = var.policy_name_vpc_apply
+  }
 }
 
+
+# -----------------------
+# Probe existing policies by name (via AWS CLI)
+# Requires AWS CLI on runner + credentials in env.
+# -----------------------
+data "external" "policy_probe" {
+  for_each = local.policy_names
+
+  program = [
+    "bash", "-c", <<-EOT
+      set -e
+      NAME='${each.value}'
+      ARN=$(aws iam list-policies --scope Local --query "Policies[?PolicyName=='${each.value}'].Arn | [0]" --output text 2>/dev/null || echo 'None')
+      if [ "$ARN" = "None" ] || [ -z "$ARN" ] || [ "$ARN" = "null" ]; then
+        echo '{"exists":"false"}'
+      else
+        # Return both flag and ARN
+        echo "{\"exists\":\"true\",\"arn\":\"${ARN}\"}"
+      fi
+    EOT
+  ]
+}
+
+locals {
+  policy_exists = {
+    for k, v in data.external.policy_probe :
+    k => try(v.result.exists, "false") == "true"
+  }
+
+  existing_policy_arns = {
+    for k, v in data.external.policy_probe :
+    k => try(v.result.arn, "")
+  }
+}
+
+
 resource "aws_iam_policy" "tf_backend_rw" {
+  count = local.policy_exists.tf_backend_rw ? 0 : 1
   name = var.policy_name_backend_rw
   tags = var.tags
 
@@ -53,6 +95,7 @@ resource "aws_iam_policy" "tf_backend_rw" {
 }
 
 resource "aws_iam_policy" "tf_vpc_apply" {
+  count = local.policy_exists.tf_vpc_apply ? 0 : 1
   name = var.policy_name_vpc_apply
   tags = var.tags
 
