@@ -7,7 +7,7 @@ terraform {
   }
 }
 
-# Needed to build the DynamoDB ARN with correct account id
+# Needed to build the DynamoDB ARN with the correct account id
 data "aws_caller_identity" "current" {}
 
 locals {
