@@ -91,8 +91,59 @@ jobs:
                 i=$((i+1))
           done  
 
+      - name: Discover existing IAM policy ARNs (avoid duplicate creates)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Look up customer-managed policies by name
+          B_ACK=$(aws iam list-policies --scope Local \
+                   --query "Policies[?PolicyName=='tf-backend-rw'].Arn | [0]" \
+                   --output text 2>/dev/null || echo "None")
+          VPC_APPLY=$(aws iam list-policies --scope Local \
+                   --query "Policies[?PolicyName=='tf-vpc-apply'].Arn | [0]" \
+                   --output text 2>/dev/null || echo "None")
+
+          # Normalize "None" / "null" / empty to blank
+          norm() {
+            local v="$1"
+            if [ "$v" = "None" ] || [ "$v" = "null" ] || [ -z "$v" ]; then
+              echo ""
+            else
+              echo "$v"
+            fi
+          }
+
+          B_ACK="$(norm "$B_ACK")"
+          VPC_APPLY="$(norm "$VPC_APPLY")"
+
+          # Export for terraform as input variables
+          echo "TF_VAR_existing_backend_rw_policy_arn=$B_ACK"     >> "$GITHUB_ENV"
+          echo "TF_VAR_existing_vpc_apply_policy_arn=$VPC_APPLY"  >> "$GITHUB_ENV"
+
+          echo "Detected backend-rw: ${B_ACK:-<none>}"
+          echo "Detected vpc-apply : ${VPC_APPLY:-<none>}"
+ 
+
       - name: Terraform init (local backend via fallback)
         run: terraform init -reconfigure -input=false
+
+      - name: Import existing IAM policy ARNs in case they exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -e
+          B_ARN="$(aws iam list-policies --scope Local --query "Policies[?PolicyName=='tf-backend-rw'].Arn | [0]" --output text || echo '')"
+          if [ -n "$B_ARN" ]; then
+            terraform state show module.iam-tf-policies.aws_iam_policy.tf_backend_rw[0] >/dev/null 2>&1 || \
+            terraform import module.iam-tf-policies.aws_iam_policy.tf_backend_rw[0] "$B_ARN"
+          fi
+
+          V_ARN="$(aws iam list-policies --scope Local --query "Policies[?PolicyName=='tf-vpc-apply'].Arn | [0]" --output text || echo '')"
+          if [ -n "$V_ARN" ]; then
+            terraform state show module.iam-tf-policies.aws_iam_policy.tf_vpc_apply[0] >/dev/null 2>&1 || \
+            terraform import module.iam-tf-policies.aws_iam_policy.tf_vpc_apply[0] "$V_ARN"
+          fi
 
       - name: Bootstrap apply (bucket + policies + OIDC role)
         run: |
