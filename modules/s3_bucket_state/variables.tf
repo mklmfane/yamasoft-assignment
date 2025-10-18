@@ -3,6 +3,7 @@ variable "bucket_suffix_name" {
   type        = string    
 }
 
+
 variable "lock_table" {
   description = "dynamodb lock table"
   type        = string   
