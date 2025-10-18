@@ -88,6 +88,7 @@ resource "aws_iam_policy" "tf_backend_rw" {
   })
 }
 
+
 # Create the IAM policy for VPC apply if it doesn't already exist
 resource "aws_iam_policy" "tf_vpc_apply" {
   count = local.create_vpc_apply ? 1 : 0
