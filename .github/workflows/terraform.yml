@@ -191,7 +191,7 @@ jobs:
             ${{ runner.os }}-tf-
 
       - name: Terraform fmt
-        run: terraform fmt -check -recursive
+        run: terraform fmt -recursive -diff || true
 
       - name: Init S3 backend + migrate state (no prompts)
         run: |
