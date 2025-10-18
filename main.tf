@@ -44,8 +44,8 @@ module "iam-tf-policies" {
   lock_table_name = module.s3-bucket-state-oidc.lock_table_name
   region          = var.region
 
-  existing_backend_rw_policy_arn = ""
-  existing_vpc_apply_policy_arn = ""
+  existing_backend_rw_policy_arn = "arn:aws:iam::049419512437:policy/tf-backend-rw"
+  existing_vpc_apply_policy_arn = "arn:aws:iam::049419512437:policy/tf-vpc-apply"
 
   # ensure bucket/table exist first
   depends_on = [module.s3-bucket-state-oidc]
