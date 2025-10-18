@@ -7,8 +7,14 @@ terraform {
   }
 }
 
+# Needed to build the DynamoDB ARN with correct account id
+data "aws_caller_identity" "current" {}
+
 locals {
-  github_oidc_url = "https://token.actions.githubusercontent.com"
+  github_oidc_url     = "https://token.actions.githubusercontent.com"
+  bucket_arn          = "arn:aws:s3:::${var.bucket_name}"
+  bucket_objects      = "arn:aws:s3:::${var.bucket_name}/*"
+  dynamodb_tbl_arn    = "arn:aws:dynamodb:${var.region}:${data.aws_caller_identity.current.account_id}:table/${var.lock_table_name}"
 
   # Check if existing OIDC provider ARN and role ARN are provided
   provider_exists_hint = length(trimspace(var.existing_oidc_provider_arn)) > 0
@@ -17,9 +23,6 @@ locals {
   # Create OIDC provider and role only if not already existing
   create_provider = var.create_oidc_provider && !local.provider_exists_hint
   create_role     = var.create_oidc_role && !local.role_exists_hint
-
-  # Use the "aws_iam_openid_connect_provider" data source to detect if the provider exists.
-  provider_exists = length(trimspace(var.existing_oidc_provider_arn)) > 0 || try(data.aws_iam_openid_connect_provider.existing[0].arn, "") != ""
 }
 
 # -----------------------------------------------------------------------------
@@ -89,7 +92,9 @@ resource "aws_iam_role_policy_attachment" "attach" {
   depends_on = [aws_iam_role.this]
 }
 
-
+# -----------------------------------------------------------------------------
+# Detect if the OIDC provider exists by probing
+# -----------------------------------------------------------------------------
 data "external" "oidc_provider_probe" {
   program = [
     "bash", "-c", <<-EOT
@@ -107,6 +112,9 @@ data "external" "oidc_provider_probe" {
   ]
 }
 
+# -----------------------------------------------------------------------------
+# Detect if the IAM role exists by probing
+# -----------------------------------------------------------------------------
 data "external" "oidc_role_probe" {
   program = [
     "bash", "-c", <<-EOT
@@ -121,3 +129,4 @@ data "external" "oidc_role_probe" {
     EOT
   ]
 }
+
