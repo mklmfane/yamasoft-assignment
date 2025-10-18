@@ -15,6 +15,10 @@ locals {
   bucket_objects   = "arn:aws:s3:::${var.bucket_name}/*"
   dynamodb_tbl_arn = "arn:aws:dynamodb:${var.region}:${data.aws_caller_identity.current.account_id}:table/${var.lock_table_name}"
 
+
+  create_backend_rw = var.existing_backend_rw_policy_arn == ""
+  create_vpc_apply  = var.existing_vpc_apply_policy_arn == ""
+
   policy_names = {
     tf_backend_rw = var.policy_name_backend_rw
     tf_vpc_apply  = var.policy_name_vpc_apply
@@ -63,7 +67,9 @@ locals {
 
 
 resource "aws_iam_policy" "tf_backend_rw" {
-  count = local.policy_exists.tf_backend_rw ? 0 : 1
+
+  count = local.create_backend_rw ? 1 : 0
+
   name = var.policy_name_backend_rw
   tags = var.tags
 
@@ -100,7 +106,8 @@ resource "aws_iam_policy" "tf_backend_rw" {
 }
 
 resource "aws_iam_policy" "tf_vpc_apply" {
-  count = local.policy_exists.tf_vpc_apply ? 0 : 1
+  local.create_vpc_apply ? 1 : 0
+
   name = var.policy_name_vpc_apply
   tags = var.tags
 
