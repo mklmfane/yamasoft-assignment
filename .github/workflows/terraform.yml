@@ -28,24 +28,34 @@ env:
   TF_IN_AUTOMATION: "true"
   AWS_REGION: eu-west-1
 
+  
 jobs:
   bootstrap:
     name: Bootstrap (create S3 state, IAM policies, OIDC)
     runs-on: ubuntu-latest
 
-    # Uses LONG-LIVED AWS KEYS (repo Secrets) just this once
-    # Add repo secrets: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY (and optional AWS_SESSION_TOKEN)
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (secrets for bootstrap)
+      # Guard: ensure secrets exist (prevents "Could not load credentials")
+      - name: Assert bootstrap secrets exist
+        run: |
+          set -euo pipefail
+          : "${{ secrets.AWS_ACCESS_KEY_ID?Missing repo secret AWS_ACCESS_KEY_ID }}"
+          : "${{ secrets.AWS_SECRET_ACCESS_KEY?Missing repo secret AWS_SECRET_ACCESS_KEY }}"
+          echo "Bootstrap AWS secrets are present."
+
+      - name: Configure AWS credentials (bootstrap via access keys)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }} # optional
+
+      - name: Verify caller identity
+        run: aws sts get-caller-identity
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
@@ -73,12 +83,18 @@ jobs:
         id: out
         run: |
           set -euo pipefail
-          tfjson=$(terraform output -json)
+          tfjson=$(terraform output -json || echo '{}')
 
           BUCKET=$(echo "$tfjson" | jq -r '.s3_bucket_id.value // empty')
           KEY=$(echo "$tfjson" | jq -r '.backend_key.value // empty')
           USE_LOCKFILE=$(echo "$tfjson" | jq -r '.use_lockfile.value // empty')
           ROLE_ARN=$(echo "$tfjson" | jq -r '.github_oidc_role_arn.value // empty')
+
+          # Basic sanity checks
+          [ -z "$BUCKET" ] && echo "WARNING: s3_bucket_id output empty."
+          [ -z "$KEY" ] && echo "WARNING: backend_key output empty."
+          [ -z "$USE_LOCKFILE" ] && USE_LOCKFILE="true"   # default
+          [ -z "$ROLE_ARN" ] && echo "WARNING: github_oidc_role_arn output empty."
 
           echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
           echo "key=$KEY" >> $GITHUB_OUTPUT
@@ -86,15 +102,16 @@ jobs:
           echo "role_arn=$ROLE_ARN" >> $GITHUB_OUTPUT
 
     outputs:
-      bucket:     ${{ steps.out.outputs.bucket }}
-      key:        ${{ steps.out.outputs.key }}
+      bucket:       ${{ steps.out.outputs.bucket }}
+      key:          ${{ steps.out.outputs.key }}
       use_lockfile: ${{ steps.out.outputs.use_lockfile }}
-      role_arn:   ${{ steps.out.outputs.role_arn }}
+      role_arn:     ${{ steps.out.outputs.role_arn }}
 
   deploy:
     name: Migrate backend ➜ Plan/Apply (OIDC)
     runs-on: ubuntu-latest
     needs: bootstrap
+    if: ${{ needs.bootstrap.outputs.role_arn != '' }}  # don't try OIDC if bootstrap didn't produce a role
 
     env:
       TF_BACKEND_BUCKET: ${{ needs.bootstrap.outputs.bucket }}
@@ -112,7 +129,10 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ env.AWS_OIDC_ROLE_ARN }}
           role-session-name: gha-terraform
-          # audience defaults to sts.amazonaws.com, which must match your provider's client_id_list
+          # audience defaults to sts.amazonaws.com; must match your OIDC provider client_id_list
+
+      - name: Verify caller identity (OIDC)
+        run: aws sts get-caller-identity
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
@@ -146,7 +166,6 @@ jobs:
       - name: Terraform validate
         run: terraform validate -no-color
 
-      # PRs: plan only
       - name: Terraform plan (PR)
         if: github.event_name == 'pull_request'
         run: terraform plan -input=false -no-color -out=tfplan.bin
@@ -159,7 +178,6 @@ jobs:
           path: tfplan.bin
           retention-days: 3
 
-      # Non-PRs: plan/apply
       - name: Terraform plan (apply path)
         if: github.event_name != 'pull_request'
         run: terraform plan -input=false -no-color
@@ -168,7 +186,6 @@ jobs:
         if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.do_apply == 'true')
         run: terraform apply -input=false -auto-approve
 
-      # Manual destroy only
       - name: Terraform destroy (manual only)
         if: github.event_name == 'workflow_dispatch' && inputs.do_destroy == 'true'
         run: terraform destroy -input=false -auto-approve
