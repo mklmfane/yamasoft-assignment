@@ -66,16 +66,25 @@ jobs:
           terraform_version: 1.13.3
           terraform_wrapper: false
 
-      # --- NEW: temporarily force LOCAL backend so apply won't complain ---
-      - name: Create temporary local-backend override
+      # -------- CHANGED: temporarily remove s3 backend from the tree --------
+      - name: Temporarily disable S3 backend files
         run: |
-          cat > zz-backend-local.tf <<'EOF'
-          terraform {
-            backend "local" {}
-          }
-          EOF
+          set -euo pipefail
+          mkdir -p .ci-backend-stash
+          # Stash any files which declare backend "s3"
+          matches=$(grep -Rl --exclude-dir=.ci-backend-stash 'backend *"s3"' . || true)
+          if [ -n "$matches" ]; then
+            echo "$matches" | while read -r f; do
+              # Keep relative paths, but store a copy in stash with path encoded
+              dest=".ci-backend-stash/$(echo "$f" | sed 's#[/ ]#_#g')"
+              echo "Stashing backend from $f -> $dest"
+              mv "$f" "$dest"
+            done
+          else
+            echo "No backend \"s3\" blocks found to stash."
+          fi
 
-      - name: Terraform init (local backend via override)
+      - name: Terraform init (local backend via fallback)
         run: terraform init -reconfigure -input=false
 
       - name: Bootstrap apply (bucket + policies + OIDC role)
@@ -107,9 +116,25 @@ jobs:
           echo "use_lockfile=$USE_LOCKFILE" >> $GITHUB_OUTPUT
           echo "role_arn=$ROLE_ARN"         >> $GITHUB_OUTPUT
 
-      # --- NEW: remove the local-backend override before remote init ---
-      - name: Remove local-backend override
-        run: rm -f zz-backend-local.tf
+      # -------- CHANGED: restore the original backend file(s) ----------
+      - name: Restore S3 backend files
+        run: |
+          set -euo pipefail
+          if [ -d .ci-backend-stash ]; then
+            for f in .ci-backend-stash/*; do
+              # Recreate the original path from the encoded filename
+              # Since we encoded '/' as '_' above, restore to repo root with original basename if unique:
+              # If you have multiple backend files in subdirs, prefer a simpler approach: mv .ci-backend-stash/* .
+              # (Most repos have only one backend block in root.)
+              bn=$(basename "$f")
+              # Default: drop into repo root
+              dest="./${bn//_//}"
+              # If that path is weird, just place in repo root as original basename
+              mkdir -p "$(dirname "$dest")" || true
+              mv "$f" "$dest" 2>/dev/null || mv "$f" .
+            done
+            rmdir .ci-backend-stash || true
+          fi
 
     outputs:
       bucket:       ${{ steps.out.outputs.bucket }}
