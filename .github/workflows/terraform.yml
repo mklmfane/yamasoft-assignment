@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@v4
 
       # Guard: fail early if required secrets are missing
-      - name: Guard: require AWS secrets for bootstrap
+      - name: Guard require AWS secrets for bootstrap
         if: ${{ secrets.AWS_ACCESS_KEY_ID == '' || secrets.AWS_SECRET_ACCESS_KEY == '' }}
         run: |
           echo "ERROR: Missing repo secrets AWS_ACCESS_KEY_ID and/or AWS_SECRET_ACCESS_KEY." >&2
