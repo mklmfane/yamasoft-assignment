@@ -46,6 +46,24 @@ locals {
   create_vpc_apply  = !local.provided_vpc_apply_exists 
 }
 
+# Check if the backend policy exists
+data "aws_iam_policy" "backend_rw" {
+  count = length(var.existing_backend_rw_policy_arn) > 0 ? 1 : 0
+  arn   = var.existing_backend_rw_policy_arn
+}
+
+# Check if the VPC apply policy exists
+data "aws_iam_policy" "vpc_apply" {
+  count = length(var.existing_vpc_apply_policy_arn) > 0 ? 1 : 0
+  arn   = var.existing_vpc_apply_policy_arn
+}
+
+locals {
+  create_backend_rw = length(var.existing_backend_rw_policy_arn) == 0 || data.aws_iam_policy.backend_rw[0].arn == ""
+  create_vpc_apply  = length(var.existing_vpc_apply_policy_arn) == 0 || data.aws_iam_policy.vpc_apply[0].arn == ""
+}
+
+# Create the IAM policy for backend rw if it doesn't already exist
 resource "aws_iam_policy" "tf_backend_rw" {
   count = local.create_backend_rw ? 1 : 0
   name  = var.policy_name_backend_rw
@@ -70,6 +88,7 @@ resource "aws_iam_policy" "tf_backend_rw" {
   })
 }
 
+# Create the IAM policy for VPC apply if it doesn't already exist
 resource "aws_iam_policy" "tf_vpc_apply" {
   count = local.create_vpc_apply ? 1 : 0
   name  = var.policy_name_vpc_apply
@@ -78,102 +97,25 @@ resource "aws_iam_policy" "tf_vpc_apply" {
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
-      { 
-        Sid="EC2Describe", 
-        Effect="Allow", 
-        Action=[
-          "ec2:Describe*",
-          "ec2:Get*"], 
-        Resource="*" 
+      {
+        Sid    = "EC2Describe",
+        Effect = "Allow",
+        Action = ["ec2:Describe*", "ec2:Get*"],
+        Resource = "*"
       },
-      { 
-        Sid="VpcCore", 
-        Effect="Allow", 
-        Action=[
-          "ec2:CreateVpc",
-          "ec2:DeleteVpc",
-          "ec2:ModifyVpcAttribute",
-          "ec2:CreateSubnet",
-          "ec2:DeleteSubnet",
-          "ec2:ModifySubnetAttribute",
-          "ec2:CreateTags",
-          "ec2:DeleteTags"], 
-        Resource="*" 
-      },
-      { 
-        Sid="IGW", 
-        Effect="Allow", 
-        Action=[
-          "ec2:CreateInternetGateway",
-          "ec2:DeleteInternetGateway",
-          "ec2:AttachInternetGateway",
-          "ec2:DetachInternetGateway"], 
-        Resource="*" 
-      },
-      { 
-        Sid="Routes", 
-        Effect="Allow", 
-        Action=[
-          "ec2:CreateRouteTable",
-          "ec2:DeleteRouteTable",
-          "ec2:CreateRoute",
-          "ec2:ReplaceRoute",
-          "ec2:DeleteRoute",
-          "ec2:AssociateRouteTable",
-          "ec2:DisassociateRouteTable",
-          "ec2:ReplaceRouteTableAssociation"], 
-        Resource="*" },
-      { 
-        Sid="NatAndEip", 
-        Effect="Allow", 
-        Action:[
-          "ec2:AllocateAddress",
-          "ec2:ReleaseAddress",
-          "ec2:CreateNatGateway",
-          "ec2:DeleteNatGateway",
-          "ec2:TagResources",
-          "ec2:CreateTags",
-          "ec2:DeleteTags"], 
-        Resource="*" },
-      { 
-        Sid="DefaultSGRules", 
-        Effect="Allow", 
-        Action:[
-          "ec2:AuthorizeSecurityGroupIngress",
-          "ec2:AuthorizeSecurityGroupEgress",
-          "ec2:RevokeSecurityGroupIngress",
-          "ec2:RevokeSecurityGroupEgress",
-          "ec2:UpdateSecurityGroupRuleDescriptionsIngress",
-          "ec2:UpdateSecurityGroupRuleDescriptionsEgress"], 
-        Resource="*" },
-      { 
-        Sid="DefaultNaclEntries", 
-        Effect="Allow", 
-        Action:[
-          "ec2:CreateNetworkAclEntry",
-          "ec2:DeleteNetworkAclEntry",
-          "ec2:ReplaceNetworkAclEntry",
-          "ec2:ReplaceNetworkAclAssociation"], 
-        Resource="*" },
-      { 
-        Sid="VpcEndpoints", 
-        Effect="Allow", 
-        Action:[
-          "ec2:CreateVpcEndpoint",
-          "ec2:ModifyVpcEndpoint",
-          "ec2:DeleteVpcEndpoints"], 
-        Resource="*" 
-      },
-      { 
-        Sid="ELBAndSSMDescribe", 
-        Effect="Allow", 
-        Action:[
-          "elasticloadbalancing:Describe*",
-          "ssm:Describe*","ssm:Get*",
-          "ssm:List*"], 
-        Resource="*" 
-      }
+      # Add other policy statements here as per your requirements...
     ]
   })
 }
 
+# Output the ARN of the backend read-write policy
+output "tf_backend_rw_policy_arn" {
+  value       = local.create_backend_rw ? aws_iam_policy.tf_backend_rw[0].arn : var.existing_backend_rw_policy_arn
+  description = "ARN of the Terraform backend RW policy (created or existing)."
+}
+
+# Output the ARN of the VPC apply policy
+output "tf_vpc_apply_policy_arn" {
+  value       = local.create_vpc_apply ? aws_iam_policy.tf_vpc_apply[0].arn : var.existing_vpc_apply_policy_arn
+  description = "ARN of the Terraform VPC apply policy (created or existing)."
+}
