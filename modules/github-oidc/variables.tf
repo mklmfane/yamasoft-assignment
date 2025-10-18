@@ -68,3 +68,15 @@ variable "role_description" {
   type        = string
   default     = "Role assumed by the GitHub OIDC provider."
 }
+
+variable "existing_oidc_provider_arn" {
+  description = "If set, provider already exists; module will not create a new one."
+  type        = string
+  default     = ""
+}
+
+variable "existing_role_arn" {
+  description = "If set, role already exists; module will not create a new one."
+  type        = string
+  default     = ""
+}

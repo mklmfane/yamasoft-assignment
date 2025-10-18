@@ -23,3 +23,15 @@ variable "lock_table" {
   description = "lock table of dynamodb"
   type        = string
 }
+
+variable "existing_oidc_provider_arn" { 
+  description = "check existance of oidc provider arn"
+  type = string
+  default = "" 
+}
+
+variable "existing_role_arn" { 
+  description = "check existance of the role arn"
+  type = string 
+  default = "" 
+}
