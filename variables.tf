@@ -8,7 +8,7 @@ variable "repository_list" {
   type        = list(string)
 }
 
-variable "bucket_suffix_name" {
+variable "bucket_prefix_name" {
   description = "bucket suffix"
   type        = string    
 }

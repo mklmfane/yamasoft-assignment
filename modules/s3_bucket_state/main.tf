@@ -1,11 +1,8 @@
-resource "random_string" "s3_bucket_suffix" {
-  length  = 9
-  upper   = false
-  special = false
-}
+
 
 locals {
-  state_bucket = "${var.bucket_suffix_name}-${random_string.s3_bucket_suffix.result}"
+  s3_bucket_sufix = "77g78ef5w"
+  state_bucket = "${var.bucket_prefix_name}-${local.s3_bucket_sufix}"
 }
 
 ################################################################################

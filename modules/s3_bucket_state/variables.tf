@@ -1,5 +1,5 @@
-variable "bucket_suffix_name" {
-  description = "bucket suffix"
+variable "bucket_prefix_name" {
+  description = "bucket prefix"
   type        = string    
 }
 

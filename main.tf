@@ -39,7 +39,7 @@ module "vpc" {
 module "s3_bucket_state_oidc" {
   source  = "./modules/s3_bucket_state"
 
-  bucket_suffix_name = var.bucket_suffix_name
+  bucket_prefix_name = var.bucket_prefix_name
   lock_table         = var.lock_table
 }
 
