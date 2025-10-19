@@ -8,10 +8,9 @@ terraform {
 }
 
 locals {
-  github_oidc_url = "https://token.actions.githubusercontent.com"
-
+  github_oidc_url  = "https://token.actions.githubusercontent.com"
   # Create the provider only if caller asked AND no ARN was provided
-  create_provider = var.create_oidc_provider && length(trimspace(var.oidc_provider_arn)) == 0
+  create_provider  = var.create_oidc_provider && length(trimspace(var.oidc_provider_arn)) == 0
 }
 
 # Create OIDC provider if requested (count known at plan time)
@@ -26,9 +25,7 @@ resource "aws_iam_openid_connect_provider" "this" {
 # 1) the one we just created (if any)  2) or the provided ARN (if any)  3) else empty string
 locals {
   created_provider_arn   = try(aws_iam_openid_connect_provider.this[0].arn, "")
-  federated_provider_arn = length(local.created_provider) > 0
-    ? local.created_provider
-    : trimspace(var.oidc_provider_arn)
+  federated_provider_arn = length(local.created_provider_arn) > 0 ? local.created_provider_arn : trimspace(coalesce(var.oidc_provider_arn, ""))
 }
 
 # Trust policy (no count needed)
