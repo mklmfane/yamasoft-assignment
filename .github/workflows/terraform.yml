@@ -124,7 +124,6 @@ jobs:
           echo "Detected tf-backend-rw: ${B_ACK:-<none>}"
           echo "Detected tf-vpc-apply : ${VPC_APPLY:-<none>}"
 
-          
     # avoid duplicated github oidc iam role
       - name: Dectect existing github oidc iam role
         shell: bash
