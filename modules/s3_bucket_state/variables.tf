@@ -29,7 +29,7 @@ variable "create_lock_table" {
   default     = true
 }
 
-variables "state_key" {
+variable "state_key" {
   description = "Terraform state key name"
   type = string
 }
