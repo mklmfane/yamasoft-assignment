@@ -56,13 +56,12 @@ module "iam_tf_policies" {
   depends_on = [module.s3_bucket_state_oidc]
 }
 
-
 module "github_oidc" {
   source = "./modules/github_oidc"
 
-  create_oidc_provider        = false
-  existing_oidc_provider_arn  = local.existing_provider_arn
-  create_oidc_role            = true
+  create_oidc_provider = false
+  oidc_provider_arn    = local.existing_provider_arn  # <- pass your discovered ARN
+  create_oidc_role     = true
 
   repositories = var.repository_list
   oidc_role_attach_policies = [
@@ -70,7 +69,5 @@ module "github_oidc" {
     module.iam_tf_policies.tf_vpc_apply_policy_arn
   ]
 
-  depends_on = [
-    module.iam_tf_policies
-  ]
+  depends_on = [module.iam_tf_policies]
 }

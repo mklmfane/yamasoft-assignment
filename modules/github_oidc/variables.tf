@@ -1,25 +1,19 @@
 variable "create_oidc_provider" {
-  description = "Create the OIDC provider (skipped if one already exists for GitHub URL)."
+  description = "Whether to create the OIDC provider. If false, provide oidc_provider_arn."
   type        = bool
   default     = true
+}
+
+variable "oidc_provider_arn" {
+  description = "Existing OIDC provider ARN to use (required if create_oidc_provider=false)."
+  type        = string
+  default     = ""
 }
 
 variable "create_oidc_role" {
-  description = "Create the IAM role (skipped if a role with the same name already exists)."
+  description = "Whether to create the IAM role for GitHub OIDC."
   type        = bool
   default     = true
-}
-
-variable "existing_oidc_provider_arn" {
-  description = "If set, use this existing OIDC provider ARN instead of creating one."
-  type        = string
-  default     = ""
-}
-
-variable "existing_role_arn" {
-  description = "If set, use this existing IAM role ARN instead of creating one."
-  type        = string
-  default     = ""
 }
 
 variable "repositories" {
@@ -29,7 +23,7 @@ variable "repositories" {
 }
 
 variable "oidc_role_attach_policies" {
-  description = "Managed policy ARNs to attach to the role (only if we created the role)."
+  description = "Managed policy ARNs to attach to the created role."
   type        = list(string)
   default     = []
 }
@@ -46,6 +40,12 @@ variable "role_description" {
   default     = "Role assumed by the GitHub OIDC provider."
 }
 
+variable "max_session_duration" {
+  description = "Maximum session duration in seconds."
+  type        = number
+  default     = 3600
+}
+
 variable "github_thumbprint" {
   description = "GitHub OIDC root CA thumbprint."
   type        = string
@@ -56,16 +56,4 @@ variable "tags" {
   description = "Tags for created resources."
   type        = map(string)
   default     = {}
-}
-
-variable "max_session_duration" {
-  description = "Maximum session duration in seconds."
-  type        = number
-  default     = 3600
-}
-
-variable "region" {
-  description = "Optional region (not needed for OIDC creation)."
-  type        = string
-  default     = ""
 }
