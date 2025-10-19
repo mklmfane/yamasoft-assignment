@@ -16,7 +16,7 @@ on:
         type: choice
         options: ["true","false"]
   push:
-    branches: ["master"]
+    branches: ["master", "main"]
   pull_request:
     branches: ["*"]
 
