@@ -6,7 +6,7 @@ locals {
 }
 
 module "vpc" {
-  source = "./modules/vpc"
+  source = "${path.module}/modules/vpc"
 
   name = var.vpc_name
   cidr = "172.16.0.0/16"
@@ -38,7 +38,7 @@ module "vpc" {
 
 
 module "s3_bucket_state_oidc" {
-  source  = "./modules/s3_bucket_state"
+  source  = "${path.module}/modules/s3_bucket_state"
 
   bucket_suffix_name = var.bucket_suffix_name
   lock_table         = var.lock_table
@@ -59,7 +59,7 @@ module "iam_tf_policies" {
 
 
 module "github_oidc" {
-  source = "./modules/github_oidc"
+  source = "${path.module}/modules/github_oidc"
 
   create_oidc_provider        = false
   existing_oidc_provider_arn  = local.existing_provider_arn
