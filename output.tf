@@ -8,7 +8,6 @@ output "tf_lock_table_name" {
   description = "Name of the DynamoDB table used for Terraform state locking."
 }
 
-
 output "github_oidc_role_arn" {
   description = "IAM role ARN used by GitHub OIDC."
   value       = length(try(module.github_oidc.effective_role_arn, "")) > 0 ? module.github_oidc.effective_role_arn : ""
