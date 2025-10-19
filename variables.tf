@@ -24,7 +24,7 @@ variable "lock_table" {
   type        = string
 }
 
-variable "existing_oidc_provider_arn" { 
+variable "oidc_provider_arn" { 
   description = "check existance of oidc provider arn"
   type = string
   default = "" 

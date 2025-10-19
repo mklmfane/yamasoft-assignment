@@ -61,7 +61,7 @@ module "github_oidc" {
   source = "./modules/github_oidc"
 
   create_oidc_provider        = false
-  existing_oidc_provider_arn  = local.existing_provider_arn
+  oidc_provider_arn           = local.existing_provider_arn
   create_oidc_role            = true
 
   repositories = var.repository_list
