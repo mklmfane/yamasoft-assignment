@@ -125,7 +125,7 @@ jobs:
           echo "Detected tf-vpc-apply : ${VPC_APPLY:-<none>}"
 
     # avoid duplicated github oidc iam role
-      - name: Dectect existing github oidc iam role
+      - name: Detect existing github oidc iam role
         shell: bash
         run: |
           set -euo pipefail
@@ -162,7 +162,6 @@ jobs:
           # Optionally prevent creation in the module
           if [ -n "$PROV_ARN" ]; then echo "TF_VAR_create_oidc_provider=false" >> "$GITHUB_ENV"; fi
           if [ -n "$ROLE_ARN" ]; then echo "TF_VAR_create_oidc_role=false"     >> "$GITHUB_ENV"; fi
-
           echo "Provider: ${PROV_ARN:-<none>}  Role: ${ROLE_ARN:-<none>}"
 
       # Bootstrap core infra (targets on purpose, to create backend + OIDC)
