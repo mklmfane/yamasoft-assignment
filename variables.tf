@@ -35,3 +35,8 @@ variable "existing_role_arn" {
   type = string 
   default = "" 
 }
+
+variable oidc_provider_content {
+  description = "OIDC provider for the personal github repositories"
+  default     = "token.actions.githubusercontent.com"
+}

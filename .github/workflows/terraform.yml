@@ -164,9 +164,9 @@ jobs:
           terraform apply \
             -input=false \
             -auto-approve \
-            -target=module.s3-bucket-state-oidc \
-            -target=module.iam-tf-policies \
-            -target=module.github-oidc
+            -target=module.s3_bucket_state_oidc \
+            -target=module.iam_tf_policies \
+            -target=module.github_oidc
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq

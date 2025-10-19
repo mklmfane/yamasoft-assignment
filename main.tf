@@ -1,5 +1,10 @@
 data "aws_caller_identity" "current" {}
 
+locals {
+  account_id = data.aws_caller_identity.current.account_id
+  existing_provider_arn = "arn:aws:iam::${local.account_id}:oidc-provider/${var.oidc_provider_content}"
+}
+
 module "vpc" {
   source = "./modules/vpc"
 
@@ -32,42 +37,41 @@ module "vpc" {
 }
 
 
-module "s3-bucket-state-oidc" {
+module "s3_bucket_state_oidc" {
   source  = "./modules/s3_bucket_state"
 
   bucket_suffix_name = var.bucket_suffix_name
   lock_table         = var.lock_table
 }
 
-module "iam-tf-policies" {
-  source          = "./modules/iam-tf-policies"
+module "iam_tf_policies" {
+  source          = "./modules/iam_tf_policies"
 
-  bucket_name     = module.s3-bucket-state-oidc.s3_bucket_id
-  lock_table_name = module.s3-bucket-state-oidc.lock_table_name
+  bucket_name     = module.s3_bucket_state_oidc.s3_bucket_id
+  lock_table_name = module.s3_bucket_state_oidc.lock_table_name
   region          = var.region
 
 
   # ensure bucket/table exist first
-  depends_on = [module.s3-bucket-state-oidc]
+  depends_on = [module.s3_bucket_state_oidc]
 }
 
 
 
-module "github-oidc" {
-  source = "./modules/github-oidc"
+module "github_oidc" {
+  source = "./modules/github_oidc"
 
   create_oidc_provider        = false
-  existing_oidc_provider_arn  = "arn:aws:iam::049419512437:oidc-provider/token.actions.githubusercontent.com"
+  existing_oidc_provider_arn  = local.existing_provider_arn
   create_oidc_role            = true
 
   repositories = var.repository_list
   oidc_role_attach_policies = [
-    module.iam-tf-policies.tf_backend_rw_policy_arn,
-    module.iam-tf-policies.tf_vpc_apply_policy_arn
+    module.iam_tf_policies.tf_backend_rw_policy_arn,
+    module.iam_tf_policies.tf_vpc_apply_policy_arn
   ]
 
-  # (No bucket/lock/region inputs needed here)
   depends_on = [
-    module.iam-tf-policies
+    module.iam_tf_policies
   ]
 }
