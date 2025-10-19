@@ -9,9 +9,7 @@ output "effective_oidc_provider_arn" {
 # Role ARN (created → input → probe → "")
 output "effective_role_arn" {
   description = "IAM role ARN (created by module, provided via input, or discovered)."
-  value = length(try(aws_iam_role.this[0].arn, "")) > 0 ? aws_iam_role.this[0].arn 
-    : (length(trimspace(var.existing_role_arn)) > 0 ? 
-      trimspace(var.existing_role_arn) : trimspace(try(data.external.oidc_role_probe.result.arn, "")))
+  value = length(try(aws_iam_role.this[0].arn, "")) > 0 ? aws_iam_role.this[0].arn : (length(trimspace(var.existing_role_arn)) > 0 ? trimspace(var.existing_role_arn) : trimspace(try(data.external.oidc_role_probe.result.arn, "")))
 }
 
 #output "effective_role_arn" {
