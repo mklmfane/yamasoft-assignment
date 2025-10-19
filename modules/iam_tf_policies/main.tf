@@ -74,14 +74,31 @@ resource "aws_iam_policy" "tf_backend_rw" {
       {
         Sid      = "S3StateRW",
         Effect   = "Allow",
-        Action   = ["s3:ListBucket", "s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
-        Resource = [local.bucket_arn, local.bucket_objects]
+        Action   = [
+          "s3:ListBucket", 
+          "s3:CreateBucket",
+          "s3:GetObject", 
+          "s3:PutObject", 
+          "s3:DeleteObject"
+        ],
+        Resource = [
+          local.bucket_arn, 
+          local.bucket_objects
+        ]
       },
       {
         Sid      = "DynamoDBLocking",
         Effect   = "Allow",
-        Action   = ["dynamodb:DescribeTable", "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem"],
-        Resource = local.dynamodb_tbl_arn
+        Action   = [
+          "dynamodb:DescribeTable", 
+          "dynamodb:GetItem",
+          "dynamodb:CreateTable",  
+          "dynamodb:PutItem", 
+          "dynamodb:DeleteItem"
+        ],
+        Resource = [
+          local.dynamodb_tbl_arn
+        ]
       }
     ]
   })
@@ -99,7 +116,11 @@ resource "aws_iam_policy" "tf_vpc_apply" {
       {
         Sid      = "EC2Describe",
         Effect   = "Allow",
-        Action   = ["ec2:Describe*", "ec2:Get*"],
+        Action   = [
+          "ec2:Describe*", 
+          "ec2:Get*",
+          "ec2:CreateVpc"
+        ],
         Resource = "*"
       }
     ]
