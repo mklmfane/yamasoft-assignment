@@ -36,7 +36,6 @@ module "vpc" {
   }
 }
 
-
 module "s3_bucket_state_oidc" {
   source  = "./modules/s3_bucket_state"
 
