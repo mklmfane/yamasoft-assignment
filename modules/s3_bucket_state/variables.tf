@@ -29,6 +29,10 @@ variable "create_lock_table" {
   default     = true
 }
 
+variables "state_key" {
+  description = "Terraform state key name"
+  type = string
+}
 
 variable "existing_lock_table"  { 
   description = "The name of existing dynamodb table lock "

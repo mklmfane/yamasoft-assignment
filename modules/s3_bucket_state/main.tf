@@ -1,6 +1,7 @@
 locals {
-  s3_bucket_suffix = "77g78ef5w"
-  state_bucket     = "${var.bucket_prefix_name}-${local.s3_bucket_suffix}"
+  s3_bucket_suffix       = "77g78ef5w"
+  state_bucket           = "${var.bucket_prefix_name}-${local.s3_bucket_suffix}"
+  backend_key_effective  = var.state_key
 }
 
 # 1) Bucket

@@ -21,3 +21,8 @@ output "lock_table_name_output" {
   description = "DynamoDB lock table to use (created or existing)"
   value       = local.lock_table_name_effective
 }
+
+output "backend_key" {                      # <— expose the key for the backend
+  description = "S3 object key to store Terraform state"
+  value       = local.backend_key_effective
+}
