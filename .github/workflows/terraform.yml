@@ -225,11 +225,6 @@ jobs:
           done < .ci-backend-stash/manifest.txt
           rm -rf .ci-backend-stash
       
-      - name: Debug TF outputs
-        run: |
-          set -euo pipefail
-          terraform output
-
     outputs:
       bucket:       ${{ steps.out.outputs.bucket }}
       key:          ${{ steps.out.outputs.key }}
