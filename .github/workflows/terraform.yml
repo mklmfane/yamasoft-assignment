@@ -172,10 +172,7 @@ jobs:
           set -euo pipefail
           terraform apply \
             -input=false \
-            -auto-approve \
-            -target=module.s3_bucket_state_oidc \
-            -target=module.iam_tf_policies \
-            -target=module.github_oidc
+            -auto-approve
     
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
