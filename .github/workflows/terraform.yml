@@ -215,18 +215,25 @@ jobs:
             i=$((i+1))
           done < .ci-backend-stash/manifest.txt
           rm -rf .ci-backend-stash
+      
+      - name: Debug TF outputs
+        run: |
+          set -euo pipefail
+          terraform output
 
     outputs:
       bucket:       ${{ steps.out.outputs.bucket }}
       key:          ${{ steps.out.outputs.key }}
       use_lockfile: ${{ steps.out.outputs.use_lockfile }}
       role_arn:     ${{ steps.out.outputs.role_arn }}
+    
 
   deploy:
     name: Backend migrate ➜ Plan / Apply (OIDC)
     runs-on: ubuntu-latest
     needs: bootstrap
-    if: ${{ needs.bootstrap.result == 'success' && needs.bootstrap.outputs.role_arn != '' }}
+
+    if: ${{ needs.bootstrap.result == 'success' && needs.bootstrap.outputs.role_arn != '' && needs.bootstrap.outputs.bucket != '' && needs.bootstrap.outputs.key != '' }}
 
     env:
       TF_BACKEND_BUCKET:       ${{ needs.bootstrap.outputs.bucket }}
@@ -272,14 +279,26 @@ jobs:
         run: terraform fmt -recursive -diff || true
 
       - name: Terraform init (S3 backend, migrate state)
+        shell: bash
         run: |
-          terraform init \
-            -migrate-state \
-            -input=false \
-            -backend-config="bucket=${TF_BACKEND_BUCKET}" \
-            -backend-config="key=${TF_BACKEND_KEY}" \
-            -backend-config="region=${AWS_REGION}" \
-            -backend-config="use_lockfile=${TF_BACKEND_USE_LOCKFILE}"
+          set -euo pipefail
+          ARGS=(-migrate-state -input=false)
+
+          if [ -n "${TF_BACKEND_BUCKET:-}" ]; then
+            ARGS+=(-backend-config="bucket=${TF_BACKEND_BUCKET}")
+          fi
+          if [ -n "${TF_BACKEND_KEY:-}" ]; then
+            ARGS+=(-backend-config="key=${TF_BACKEND_KEY}")
+          fi
+          if [ -n "${AWS_REGION:-}" ]; then
+            ARGS+=(-backend-config="region=${AWS_REGION}")
+          fi
+          # Optional: only include dynamodb_table if you actually use it
+          if [ -n "${TF_BACKEND_DDB_TABLE:-}" ]; then
+            ARGS+=(-backend-config="dynamodb_table=${TF_BACKEND_DDB_TABLE}")
+          fi
+          # Do NOT pass use_lockfile; it isn't an S3 backend setting and if empty it breaks init
+          terraform init "${ARGS[@]}"        
 
       - name: Terraform validate
         run: terraform validate -no-color
