@@ -176,15 +176,29 @@ jobs:
         run: |
           set -euo pipefail
           tfjson=$(terraform output -json || echo '{}')
+
+          # read the correct keys (adjust these three lines to your actual outputs)
           BUCKET=$(echo "$tfjson" | jq -r '.s3_bucket_id.value // empty')
           KEY=$(echo "$tfjson" | jq -r '.backend_key.value // empty')
           USE_LOCKFILE=$(echo "$tfjson" | jq -r '.use_lockfile.value // "true"')
-          ROLE_ARN=$(echo "$tfjson" | jq -r '.github_oidc_role_arn.value // empty')
+
+          # 👇 use the actual module output name; earlier we defined "effective_role_arn"
+          ROLE_ARN=$(echo "$tfjson" | jq -r '.effective_role_arn.value // empty')
+
+          # fallback: if TF output was empty, detect by name (non-fatal)
+          if [ -z "$ROLE_ARN" ]; then
+            ROLE_ARN=$(aws iam get-role \
+              --role-name github-oidc-provider-aws \
+              --query 'Role.Arn' --output text 2>/dev/null || true)
+              [ "$ROLE_ARN" = "None" ] && ROLE_ARN=""
+              [ "$ROLE_ARN" = "null" ] && ROLE_ARN=""
+          fi
 
           echo "bucket=$BUCKET"             >> $GITHUB_OUTPUT
           echo "key=$KEY"                   >> $GITHUB_OUTPUT
           echo "use_lockfile=$USE_LOCKFILE" >> $GITHUB_OUTPUT
           echo "role_arn=$ROLE_ARN"         >> $GITHUB_OUTPUT
+          echo "Resolved role_arn: ${ROLE_ARN:-<empty>}"
 
       - name: Restore S3 backend files
         run: |
@@ -250,6 +264,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-tf-
 
+      - name: Echo role ARN for aws oidc github role
+        run: |
+          echo "Assuming role: $AWS_OIDC_ROLE_ARN"           
+      
       - name: Terraform fmt (non-blocking)
         run: terraform fmt -recursive -diff || true
 

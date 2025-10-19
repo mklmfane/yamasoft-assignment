@@ -8,7 +8,10 @@ output "tf_lock_table_name" {
   description = "Name of the DynamoDB table used for Terraform state locking."
 }
 
+# forward the module output under the exact name your workflow expects
 output "github_oidc_role_arn" {
-  description = "ARN of the GitHub OIDC role (created by module or provided)."
-  value       = try(module.github-oidc.role_arn, null)
+  description = "IAM role ARN used by GitHub OIDC."
+  value = length(try(module.github-oidc.effective_role_arn, "")) > 0
+    ? module.github-oidc.effective_role_arn
+    : ""
 }
