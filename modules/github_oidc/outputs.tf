@@ -1,39 +1,13 @@
-# modules/github-oidc/outputs.tf
-
-# What provider ARN the role trusts (created → input → probe → "")
+# OIDC provider ARN used (created by this module OR the one you passed in)
 output "effective_oidc_provider_arn" {
-  description = "OIDC provider ARN used by the role trust policy (created, input, or discovered)."
-  value       = local.federated_provider_arn
+  description = "OIDC provider ARN used by the role trust policy."
+  value = var.create_oidc_provider
+    ? try(aws_iam_openid_connect_provider.this[0].arn, "")
+    : (var.oidc_provider_arn != null ? var.oidc_provider_arn : "")
 }
 
-# Role ARN (created → input → probe → "")
+# IAM role ARN (created by this module, or empty string if not created)
 output "effective_role_arn" {
-  description = "IAM role ARN (created by module, provided via input, or discovered)."
-  value = length(try(aws_iam_role.this[0].arn, "")) > 0 ? aws_iam_role.this[0].arn 
-    : (length(trimspace(var.existing_role_arn)) > 0 ? 
-      trimspace(var.existing_role_arn) : trimspace(try(data.external.oidc_role_probe.result.arn, "")))
+  description = "IAM role ARN created by this module (empty if create_oidc_role=false)."
+  value       = try(aws_iam_role.this[0].arn, "")
 }
-
-#output "effective_role_arn" {
-#  description = "IAM role ARN (created, provided, or discovered)."
-#  value = length(try(aws_iam_role.this[0].arn, "")) > 0
-#    ? aws_iam_role.this[0].arn
-#    : (
-#        length(trimspace(var.existing_role_arn)) > 0
-#        ? trimspace(var.existing_role_arn)
-#        : trimspace(try(data.external.oidc_role_probe.result.arn, ""))
-#      )
-#}
-
-
-# Optional: expose whether we attempted to create things (purely from inputs)
-output "create_provider" {
-  description = "Whether the module was set (by inputs) to create the OIDC provider."
-  value       = local.create_provider
-}
-
-output "create_role" {
-  description = "Whether the module was set (by inputs) to create the IAM role."
-  value       = local.create_role_gate
-}
-
