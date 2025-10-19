@@ -9,8 +9,9 @@ variable "repository_list" {
 }
 
 variable "bucket_prefix_name" {
-  description = "bucket suffix"
-  type        = string    
+  description = "bucket prefix name"
+  type        = string
+  default     = "tf-state-s3-bucket"     
 }
 
 variable "region" {

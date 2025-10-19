@@ -41,6 +41,10 @@ module "s3_bucket_state_oidc" {
 
   bucket_prefix_name = var.bucket_prefix_name
   lock_table         = var.lock_table
+
+  # decide per environment:
+  create_bucket      = true   # set false if the bucket already exists
+  create_lock_table  = true   # set false if the table already exists
 }
 
 module "iam_tf_policies" {
