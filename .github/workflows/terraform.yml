@@ -197,7 +197,6 @@ jobs:
           #  use the actual module output name; earlier we defined "effective_role_arn"
           ROLE_ARN=$(echo "$tfjson" | jq -r '.effective_role_arn.value // empty')
 
-            
           # fallback: if TF output was empty, detect by name (non-fatal)
           if [ -z "$ROLE_ARN" ]; then
             ROLE_ARN=$(aws iam get-role \
