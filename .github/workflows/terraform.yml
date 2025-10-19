@@ -176,24 +176,29 @@ jobs:
             -target=module.s3_bucket_state_oidc \
             -target=module.iam_tf_policies \
             -target=module.github_oidc
-
+    
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Export bootstrap outputs
-        id: out
+        id: export_bootstrap
         run: |
           set -euo pipefail
           tfjson=$(terraform output -json || echo '{}')
 
           # read the correct keys (adjust these three lines to your actual outputs)
           BUCKET=$(echo "$tfjson" | jq -r '.s3_bucket_id.value // empty')
+          TABLE=$(echo "$tfjson"  | jq -r '.lock_table_name.value')
           KEY=$(echo "$tfjson" | jq -r '.backend_key.value // empty')
           USE_LOCKFILE=$(echo "$tfjson" | jq -r '.use_lockfile.value // "true"')
 
-          # 👇 use the actual module output name; earlier we defined "effective_role_arn"
+          # Sensible fallback if key not present for any reason
+          if [ -z "$KEY" ]; then KEY="tfstate/terraform.tfstate"; fi 
+          
+          #  use the actual module output name; earlier we defined "effective_role_arn"
           ROLE_ARN=$(echo "$tfjson" | jq -r '.effective_role_arn.value // empty')
 
+            
           # fallback: if TF output was empty, detect by name (non-fatal)
           if [ -z "$ROLE_ARN" ]; then
             ROLE_ARN=$(aws iam get-role \
@@ -205,9 +210,10 @@ jobs:
 
           echo "bucket=$BUCKET"             >> $GITHUB_OUTPUT
           echo "key=$KEY"                   >> $GITHUB_OUTPUT
+          echo "table=$TABLE"               >> $GITHUB_OUTPUT
           echo "use_lockfile=$USE_LOCKFILE" >> $GITHUB_OUTPUT
           echo "role_arn=$ROLE_ARN"         >> $GITHUB_OUTPUT
-          echo "Resolved role_arn: ${ROLE_ARN:-<empty>}"
+          echo "Resolved: bucket=${BUCKET:-<empty>} table=${TABLE:-<empty>} role_arn=${ROLE_ARN:-<empty>}"
 
       - name: Restore S3 backend files
         run: |
@@ -227,6 +233,7 @@ jobs:
       
     outputs:
       bucket:       ${{ steps.out.outputs.bucket }}
+      table:        ${{ steps.out.outputs.table }}
       key:          ${{ steps.out.outputs.key }}
       use_lockfile: ${{ steps.out.outputs.use_lockfile }}
       role_arn:     ${{ steps.out.outputs.role_arn }}
@@ -241,6 +248,7 @@ jobs:
     env:
       TF_BACKEND_BUCKET:       ${{ needs.bootstrap.outputs.bucket }}
       TF_BACKEND_KEY:          ${{ needs.bootstrap.outputs.key }}
+      TF_BACKEND_DDB_TABLE:    ${{ needs.bootstrap.outputs.table }}
       TF_BACKEND_USE_LOCKFILE: ${{ needs.bootstrap.outputs.use_lockfile }}
       AWS_OIDC_ROLE_ARN:       ${{ needs.bootstrap.outputs.role_arn }}
 
@@ -280,6 +288,14 @@ jobs:
       
       - name: Terraform fmt (non-blocking)
         run: terraform fmt -recursive -diff || true
+
+      # flip creation flags for second (and future) runs
+      - name: Set TF vars for existing state resources
+        run: |
+          echo "TF_VAR_create_bucket=false"                         >> $GITHUB_ENV
+          echo "TF_VAR_create_lock_table=false"                     >> $GITHUB_ENV
+          echo "TF_VAR_existing_bucket_name=${TF_BACKEND_BUCKET}"   >> $GITHUB_ENV
+          echo "TF_VAR_existing_lock_table=${TF_BACKEND_DDB_TABLE}" >> $GITHUB_ENV
 
       - name: Terraform init (S3 backend, migrate state)
         shell: bash

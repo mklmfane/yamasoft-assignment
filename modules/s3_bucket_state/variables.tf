@@ -28,3 +28,16 @@ variable "create_lock_table" {
   type        = bool
   default     = true
 }
+
+
+variable "existing_lock_table"  { 
+  description = "The name of existing dynamodb table lock "
+  type = string 
+  default = "" 
+}
+
+variable "existing_bucket_name" { 
+  description = "The name of existing bucket"
+  type = string 
+  default = "" 
+}

@@ -94,7 +94,8 @@ resource "aws_iam_policy" "tf_backend_rw" {
           "dynamodb:GetItem",
           "dynamodb:CreateTable",  
           "dynamodb:PutItem", 
-          "dynamodb:DeleteItem"
+          "dynamodb:DeleteItem",
+          "dynamodb:TagResource"
         ],
         Resource = [
           local.dynamodb_tbl_arn
@@ -119,6 +120,7 @@ resource "aws_iam_policy" "tf_vpc_apply" {
         Action   = [
           "ec2:Describe*", 
           "ec2:Get*",
+          "ec2:CreateTags",
           "ec2:CreateVpc"
         ],
         Resource = "*"

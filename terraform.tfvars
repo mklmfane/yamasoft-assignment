@@ -1,3 +1,4 @@
+environment               = "dev"
 vpc_name                  = "test-vpc-assignment-tf"
 repository_list           = ["mklmfane/yamasoft-assignment"]
 bucket_prefix_name        = "tf-state-s3-bucket"

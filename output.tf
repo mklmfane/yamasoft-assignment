@@ -14,10 +14,17 @@ output "github_oidc_role_arn" {
 }
 
 output "s3_bucket_id" { 
+  description = "S3 bucket id"
   value = module.s3_bucket_state_oidc.s3_bucket_id 
 }
 
 output "backend_key" { 
+  description = "The backend key for locking terraform state file"
+  value = module.s3_bucket_state_oidc.backend_key
+}
+
+output "lock_table_name"   { 
+  description = "The dynamodb lock table"
   value = module.s3_bucket_state_oidc.lock_table_name 
 }
 

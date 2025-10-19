@@ -10,3 +10,14 @@ output "lock_table_name" {
   description = "Name of the DynamoDB state lock table created by this module (if any)."
   value       = try(one(aws_dynamodb_table.tf_locks[*].name), null)
 }
+
+
+output "s3_bucket_id_output" {
+  description = "Bucket name to use (created or existing)"
+  value       = local.s3_bucket_id_effective
+}
+
+output "lock_table_name_output" {
+  description = "DynamoDB lock table to use (created or existing)"
+  value       = local.lock_table_name_effective
+}
