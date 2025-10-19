@@ -4,7 +4,18 @@ terraform {
       source = "hashicorp/aws"
       version = ">= 5.0"
     }
+
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
   }
+}
+
+resource "random_string" "policy_suffix" {
+  length  = 6
+  upper   = false
+  special = false
 }
 
 # Required data for DynamoDB and S3
@@ -15,6 +26,8 @@ locals {
   bucket_arn       = "arn:aws:s3:::${var.bucket_name}"
   bucket_objects   = "arn:aws:s3:::${var.bucket_name}/*"
   dynamodb_tbl_arn = "arn:aws:dynamodb:${var.region}:${data.aws_caller_identity.current.account_id}:table/${var.lock_table_name}"
+  policy_name_backend_rw = "${var.policy_name_backend_rw}-${random_string.policy_suffix.result}"
+  policy_name_vpc_apply = "${var.policy_name_vpc_apply}-${random_string.policy_suffix.result}"
 }
 
 # -----------------------------------------------------------------------------
@@ -23,7 +36,7 @@ locals {
 resource "aws_iam_policy" "tf_backend_rw" {
   count = var.existing_backend_rw_policy_arn != "" ? 0 : 1
 
-  name  = var.policy_name_backend_rw
+  name  = local.policy_name_backend_rw
   tags  = var.tags
 
   policy = jsonencode({
@@ -48,7 +61,7 @@ resource "aws_iam_policy" "tf_backend_rw" {
 resource "aws_iam_policy" "tf_vpc_apply" {
   count = var.existing_vpc_apply_policy_arn != "" ? 0 : 1
 
-  name  = var.policy_name_vpc_apply
+  name  = local.policy_name_vpc_apply
   tags  = var.tags
 
   policy = jsonencode({
