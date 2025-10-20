@@ -65,7 +65,7 @@ module "iam_tf_policies" {
 module "github_oidc" {
   source = "./modules/github_oidc"
 
-  create_oidc_provider = false
+  create_oidc_provider = true
   oidc_provider_arn    = local.existing_provider_arn  # <- pass your discovered ARN
   create_oidc_role     = true
 
