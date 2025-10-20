@@ -16,6 +16,12 @@ variable "create_oidc_role" {
   default     = true
 }
 
+variable "oidc_provider_arn" {
+  description = "Existing OIDC provider ARN to use."
+  type        = string
+  default     = ""
+}
+
 variable "repositories" {
   description = "Allowed GitHub repos (org/repo or org/repo:ref) to assume the role."
   type        = list(string)

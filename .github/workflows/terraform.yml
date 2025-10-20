@@ -158,7 +158,6 @@ jobs:
           # Always succeed; later TF will decide to (re)create if these are empty
           exit 0
     
-      
       - name: Debug TF vars for S3/DDB
         run: |
           echo "TF_VAR_create_bucket=${TF_VAR_create_bucket:-<unset>}"
@@ -170,6 +169,12 @@ jobs:
         run: |
           echo "TF_VAR_existing_backend_rw_policy_arn=${TF_VAR_existing_backend_rw_policy_arn:-<unset>}"
           echo "TF_VAR_existing_vpc_apply_policy_arn=${TF_VAR_existing_vpc_apply_policy_arn:-<unset>}"
+
+      - name: Debug OIDC TF vars
+        run: |
+          echo "TF_VAR_create_oidc_provider=${TF_VAR_create_oidc_provider:-<unset>}"
+          echo "TF_VAR_oidc_provider_arn=${TF_VAR_oidc_provider_arn:-<unset>}"
+          echo "TF_VAR_create_oidc_role=${TF_VAR_create_oidc_role:-<unset>}"
 
       - name: Plan targeted modules
         run: |

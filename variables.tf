@@ -66,3 +66,21 @@ variable "existing_vpc_apply_policy_arn" {
   type        = string
   default     = ""
 }
+
+variable "create_oidc_provider" {
+  description = "Whether to create the OIDC provider (module passthrough)."
+  type        = bool
+  default     = true
+}
+
+variable "oidc_provider_arn" {
+  description = "Existing OIDC provider ARN to use."
+  type        = string
+  default     = ""
+}
+
+variable "create_oidc_role" {
+  description = "Whether to create the OIDC role (module passthrough)."
+  type        = bool
+  default     = true
+}
