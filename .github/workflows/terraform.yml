@@ -280,7 +280,12 @@ jobs:
       # PRs: plan only
       - name: Terraform plan (PR)
         if: github.event_name == 'pull_request'
-        run: terraform plan -input=false -no-color -out=tfplan.bin
+        run: terraform plan -input=false \             
+               -target=module.s3_bucket_state_oidc \
+               -target=module.iam_tf_policies \
+               -target=module.github_oidc \
+               -no-color \ 
+               -out=tfplan.bin
 
       - name: Upload plan (PR)
         if: github.event_name == 'pull_request'
@@ -290,16 +295,23 @@ jobs:
           path: tfplan.bin
           retention-days: 3
 
-      # Non-PRs: plan & apply
-      - name: Terraform plan (apply path)
-        if: github.event_name != 'pull_request'
-        run: terraform plan -input=false -no-color
 
       - name: Terraform apply
         if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.do_apply == 'true')
-        run: terraform apply -input=false -auto-approve
+        run: terraform apply \
+              -input=false \ 
+              -target=module.s3_bucket_state_oidc \
+              -target=module.iam_tf_policies \
+              -target=module.github_oidc \ 
+              -auto-approve
 
       # Manual destroy only
       - name: Terraform destroy (manual only)
         if: github.event_name == 'workflow_dispatch' && inputs.do_destroy == 'true'
-        run: terraform destroy -input=false -auto-approve
+        run: terraform destroy \
+              -input=false \ 
+              -target=module.s3_bucket_state_oidc \
+              -target=module.iam_tf_policies \
+              -target=module.github_oidc \ 
+              -auto-approve
+
