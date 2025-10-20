@@ -38,7 +38,6 @@ variable "create_lock_table" {
   default = true 
 }
 
-
 variable "existing_lock_table"  { 
   description = "The name of existing dynamodb table lock "
   type = string 

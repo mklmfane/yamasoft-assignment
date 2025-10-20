@@ -95,21 +95,27 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Must match your module’s naming logic
           PREFIX="${TF_VAR_bucket_prefix_name:-tf-state-s3-bucket}"
-          SUFFIX="77g78ef5w"                       # <- your module's hardcoded suffix
+          SUFFIX="77g78ef5w"
           BUCKET="${PREFIX}-${SUFFIX}"
 
-          # S3: prefer list-buckets (works across regions)
+          # Buckets are global - list and match by name
           EXISTING_BUCKET="$(aws s3api list-buckets \
             --query "Buckets[?Name=='${BUCKET}'].Name | [0]" \
             --output text 2>/dev/null || true)"
           if [ "${EXISTING_BUCKET}" != "None" ] && [ -n "${EXISTING_BUCKET}" ]; then
-            echo "Detected existing bucket: ${EXISTING_BUCKET}"
-            echo "TF_VAR_create_bucket=false"                 >> "$GITHUB_ENV"
+            echo "Detected bucket: ${EXISTING_BUCKET}"
+            echo "TF_VAR_create_bucket=false"                    >> "$GITHUB_ENV"
             echo "TF_VAR_existing_bucket_name=${EXISTING_BUCKET}" >> "$GITHUB_ENV"
-          fi  
+          fi
 
+          LOCK="${TF_VAR_lock_table:-tf-state-lock}"
+          if aws dynamodb describe-table --table-name "${LOCK}" >/dev/null 2>&1; then
+            echo "Detected lock table: ${LOCK}"
+            echo "TF_VAR_create_lock_table=false"               >> "$GITHUB_ENV"
+            echo "TF_VAR_existing_lock_table=${LOCK}"           >> "$GITHUB_ENV"
+          fi
+    
       # If these policies already exist, tell TF to skip creating them
       - name: Detect existing IAM policy ARNs
         shell: bash

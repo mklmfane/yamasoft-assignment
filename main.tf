@@ -43,8 +43,12 @@ module "s3_bucket_state_oidc" {
   lock_table         = var.lock_table
 
   # decide per environment:
-  create_bucket      = var.create_bucket   # set false if the bucket already exists
-  create_lock_table  = var.create_lock_table   # set false if the table already exists
+  #create_bucket      = var.create_bucket   # set false if the bucket already exists
+  #create_lock_table  = var.create_lock_table   # set false if the table already exists
+  
+  create_bucket      = var.create_bucket     && length(trimspace(var.existing_bucket_name))  == 0
+  create_lock_table  = var.create_lock_table && length(trimspace(var.existing_lock_table))   == 0
+  
   state_key          = "envs/${var.environment}/terraform.tfstate"
 
   existing_bucket_name = var.existing_bucket_name
