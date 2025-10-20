@@ -66,7 +66,6 @@ module "iam_tf_policies" {
   depends_on = [module.s3_bucket_state_oidc]
 }
 
-
 module "github_oidc" {
   source = "./modules/github_oidc"
 
