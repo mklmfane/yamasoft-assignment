@@ -48,6 +48,21 @@ resource "aws_iam_policy" "tf_backend_rw" {
         Resource = [
           local.dynamodb_tbl_arn
         ]
+      },
+      {
+        "Version": "2012-10-17",
+        "Statement": [{
+        "Effect": "Allow",
+        "Action": [
+          "iam:CreatePolicy",
+          "iam:GetPolicy",
+          "iam:ListPolicies",
+          "iam:CreatePolicyVersion",
+          "iam:DeletePolicyVersion",
+          "iam:AttachRolePolicy",
+          "iam:DetachRolePolicy"
+        ],
+        "Resource": "*"
       }
     ]
   })
