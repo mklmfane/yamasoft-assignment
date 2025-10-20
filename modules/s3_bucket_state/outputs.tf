@@ -1,7 +1,7 @@
 ############################
 # outputs.tf
 ############################
-output "s3_bucket_id"     { 
+output "s3_bucket_id" { 
   value = local.s3_bucket_id_effective     
 }
 
