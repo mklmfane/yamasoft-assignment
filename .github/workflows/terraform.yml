@@ -352,7 +352,7 @@ jobs:
           echo "TF_VAR_create_bucket=false"                         >> $GITHUB_ENV
           echo "TF_VAR_create_lock_table=false"                     >> $GITHUB_ENV
           echo "TF_VAR_existing_bucket_name=${TF_BACKEND_BUCKET}"   >> $GITHUB_ENV
-          echo "TF_VAR_existing_lock_table=${TF_BACKEND_DDB_TABLE}" >> $GITHUB_ENV
+          echo "TF_VAR_existing_lock_table=false" >> $GITHUB_ENV
 
       - name: Terraform init (S3 backend, migrate state)
         shell: bash
@@ -371,7 +371,7 @@ jobs:
           fi
           # Optional: only include dynamodb_table if you actually use it
           if [ -n "${TF_BACKEND_DDB_TABLE:-}" ]; then
-            ARGS+=(-backend-config="use_lockfile=${TF_BACKEND_DDB_TABLE}")
+            ARGS+=(-backend-config="use_lockfile=false")
           fi
           # Do NOT pass use_lockfile; it isn't an S3 backend setting and if empty it breaks init
           terraform init "${ARGS[@]}"        
