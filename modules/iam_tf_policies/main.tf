@@ -34,7 +34,7 @@ resource "aws_iam_policy" "tf_backend_rw" {
         ]
       },
       {
-        Sid      = "DynamoDBLocking,
+        Sid      = "DynamoDBLocking",
         Effect   = "Allow",
         Action   = [
           "dynamodb:DescribeTable", 
