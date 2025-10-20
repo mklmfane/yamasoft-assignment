@@ -158,6 +158,9 @@ jobs:
           KEY=$(echo "$tfjson"    | jq -r '.backend_key.value // empty')
           ROLE_ARN_TF=$(echo "$tfjson" | jq -r '.effective_role_arn.value // empty')
           OIDC_ARN_TF=$(echo "$tfjson" | jq -r '.effective_oidc_provider_arn.value // empty')
+          BACKEND_POL=$(echo "$tfjson" | jq -r '.backend_policy_arn.value // empty')
+          VPC_APPLY_POL=$(echo "$tfjson" | jq -r '.vpc_apply_policy_arn.value // empty')
+
 
           # fallbacks to values discovered in the detect step
           [ -z "$KEY" ] && KEY="tfstate/terraform.tfstate"
@@ -168,8 +171,15 @@ jobs:
           echo "table=$TABLE"         >> $GITHUB_OUTPUT
           echo "key=$KEY"             >> $GITHUB_OUTPUT
           echo "role_arn=$ROLE_ARN_TF" >> $GITHUB_OUTPUT
-          echo "arn_oidc=$OIDC_ARN_TF" >> $GITHUB_OUTPUT    
+          echo "arn_oidc=$OIDC_ARN_TF" >> $GITHUB_OUTPUT
+          echo "backend_policy_arn=$BACKEND_POL" >> $GITHUB_OUTPUT
+          echo "vpc_apply_policy_arn=$VPC_APPLY_POL" >> $GITHUB_OUTPUT
       
+      - name: Set TF vars for existing backend/VPC policies
+        run: |
+          echo "TF_VAR_existing_backend_rw_policy_arn=${{ needs.export_bootstrap.outputs.backend_policy_arn }}" >> $GITHUB_ENV
+          echo "TF_VAR_existing_vpc_apply_policy_arn=${{ needs.export_bootstrap.outputs.vpc_apply_policy_arn }}" >> $GITHUB_ENV  
+
       - name: Restore S3 backend files
         run: |
           set -euo pipefail
@@ -192,6 +202,8 @@ jobs:
       key:          ${{ steps.export_bootstrap.outputs.key }}
       role_arn:     ${{ steps.export_bootstrap.outputs.role_arn }}
       arn_oidc:     ${{ steps.export_bootstrap.outputs.arn_oidc }}
+      backend_policy_arn:   ${{ steps.export_bootstrap.outputs.backend_policy_arn }}
+      vpc_apply_policy_arn: ${{ steps.export_bootstrap.outputs.vpc_apply_policy_arn }}
     
   deploy:
     name: Backend migrate ➜ Plan / Apply (OIDC)

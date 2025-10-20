@@ -24,3 +24,13 @@ output "effective_oidc_provider_arn" {
   description = "OIDC provider ARN used by the GitHub OIDC role"
   value       = module.github_oidc.effective_oidc_provider_arn
 }
+
+output "backend_policy_arn" {
+  description = "tf-backend-rw policy ARN"
+  value       = module.iam_tf_policies.tf_backend_rw_policy_arn
+}
+
+output "vpc_apply_policy_arn" {
+  description = "tf-vpc-apply policy ARN"
+  value       = module.iam_tf_policies.tf_vpc_apply_policy_arn
+}
