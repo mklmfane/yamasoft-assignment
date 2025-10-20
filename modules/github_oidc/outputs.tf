@@ -9,5 +9,3 @@ output "effective_role_arn" {
   description = "IAM role ARN created by this module (empty if create_oidc_role=false)."
   value       = var.create_oidc_role ? try(aws_iam_role.this[0].arn, "") : ""
 }
-
-
