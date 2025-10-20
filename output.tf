@@ -28,6 +28,7 @@ output "effective_oidc_provider_arn" {
 output "oidc_provider_arn" {
   description = "OIDC provider ARN used by the GitHub OIDC role"
   value       = module.github_oidc.aws_iam_openid_connect_provider.this[0]
+}
 
 output "backend_policy_arn" {
   description = "tf-backend-rw policy ARN"
