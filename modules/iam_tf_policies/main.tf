@@ -12,7 +12,6 @@ locals {
 resource "aws_iam_policy" "tf_backend_rw" {
   count = length(trimspace(var.existing_backend_rw_policy_arn)) > 0 ? 0 : 1
 
-  #count = length(local.existing_backend_rw_arn) > 0 ? 0 : 1
   name = var.policy_name_backend_rw
   tags = var.tags
 
@@ -71,7 +70,6 @@ resource "aws_iam_policy" "tf_backend_rw" {
 resource "aws_iam_policy" "tf_vpc_apply" {
   count = length(trimspace(var.existing_vpc_apply_policy_arn)) > 0 ? 0 : 1
 
-  #count = length(local.existing_vpc_apply_arn) > 0 ? 0 : 1
   name = var.policy_name_vpc_apply
   tags = var.tags
 
