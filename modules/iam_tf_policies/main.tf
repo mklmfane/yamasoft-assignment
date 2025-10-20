@@ -47,23 +47,6 @@ resource "aws_iam_policy" "tf_backend_rw" {
         Resource = [
           local.dynamodb_tbl_arn
         ]
-      },
-      {
-        Sid    = "IamCreationPolicy", 
-        Effect = "Allow",
-        Action = [
-          "iam:CreatePolicy",
-          "iam:GetPolicy",
-          "iam:ListPolicies",
-          "iam:CreatePolicyVersion",
-          "iam:DeletePolicyVersion",
-          "iam:AttachRolePolicy",
-          "iam:DetachRolePolicy"
-        ],
-        Resource = [
-          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/tf-backend-rw",
-          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/tf-vpc-apply"
-        ]
       }
     ]
   })

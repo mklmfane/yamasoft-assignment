@@ -387,7 +387,6 @@ jobs:
           terraform plan -input=false \             
             -target=module.s3_bucket_state_oidc \
             -target=module.iam_tf_policies \
-            -target=module.github_oidc \
             -no-color \ 
             -out=tfplan.bin
 
@@ -404,12 +403,12 @@ jobs:
         if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.do_apply == 'true')
         run: |
           set -euo pipefail
-          terraform apply -input=false -target=module.s3_bucket_state_oidc -target=module.iam_tf_policies -target=module.github_oidc -auto-approve
+          terraform apply -input=false -target=module.s3_bucket_state_oidc -target=module.iam_tf_policies -auto-approve
 
       # Manual destroy only
       - name: Terraform destroy (manual only)
         if: github.event_name == 'workflow_dispatch' && inputs.do_destroy == 'true'
         run: |
           set -euo pipefail 
-          terraform destroy -input=false -target=module.s3_bucket_state_oidc -target=module.iam_tf_policies -target=module.github_oidc -auto-approve
+          terraform destroy -input=false -target=module.s3_bucket_state_oidc -target=module.iam_tf_policies -auto-approve
 
