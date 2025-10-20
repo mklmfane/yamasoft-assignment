@@ -68,6 +68,7 @@ resource "aws_iam_role" "this" {
   }
 }
 
+
 resource "aws_iam_role_policy_attachment" "attach" {
   count      = var.create_oidc_role ? length(var.oidc_role_attach_policies) : 0
   policy_arn = var.oidc_role_attach_policies[count.index]
