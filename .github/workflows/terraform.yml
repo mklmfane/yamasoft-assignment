@@ -131,13 +131,23 @@ jobs:
           [ -n "$B_ACK" ]     && echo "TF_VAR_existing_backend_rw_policy_arn=$B_ACK"    >> "$GITHUB_ENV"
           [ -n "$VPC_APPLY" ] && echo "TF_VAR_existing_vpc_apply_policy_arn=$VPC_APPLY" >> "$GITHUB_ENV"
       
-      - name: Debug IAM policy inputs
+      - name: Debug TF vars for S3/DDB
+        run: |
+          echo "TF_VAR_create_bucket=${TF_VAR_create_bucket:-<unset>}"
+          echo "TF_VAR_existing_bucket_name=${TF_VAR_existing_bucket_name:-<unset>}"
+          echo "TF_VAR_create_lock_table=${TF_VAR_create_lock_table:-<unset>}"
+          echo "TF_VAR_existing_lock_table=${TF_VAR_existing_lock_table:-<unset>}"
+
+      - name: Debug TF vars for IAM policies
         run: |
           echo "TF_VAR_existing_backend_rw_policy_arn=${TF_VAR_existing_backend_rw_policy_arn:-<unset>}"
           echo "TF_VAR_existing_vpc_apply_policy_arn=${TF_VAR_existing_vpc_apply_policy_arn:-<unset>}"
 
-      - name: What will TF do for iam_tf_policies?
-        run: terraform plan -target=module.iam_tf_policies -no-color
+      - name: Plan targeted modules
+        run: |
+          terraform plan -target=module.s3_bucket_state_oidc -no-color
+          terraform plan -target=module.iam_tf_policies     -no-color
+          terraform plan -target=module.github_oidc         -no-color    
 
       # If a GitHub OIDC provider/role already exists, don’t recreate them
       - name: Detect existing GitHub OIDC provider/role
