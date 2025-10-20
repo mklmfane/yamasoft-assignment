@@ -117,19 +117,47 @@ jobs:
           fi
     
       # If these policies already exist, tell TF to skip creating them
-      - name: Detect existing IAM policy ARNs
+      - name: Detect existing IAM policy ARNs (robust)
         shell: bash
+        env:
+          AWS_PAGER: ""           # avoid paging
+          AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
         run: |
-          set -euo pipefail
+          set -o pipefail
+          set +e  # do not fail the step on aws/list errors
+
           get_arn () {
-            aws iam list-policies --scope Local \
-              --query "Policies[?PolicyName=='$1'].Arn | [0]" \
-              --output text 2>/dev/null || true
+            local name="$1"
+            # Use safe JMESPath and swallow errors
+            local arn
+            arn=$(aws iam list-policies --scope Local --no-paginate \
+              --query "Policies[?PolicyName=='${name}'].Arn | [0]" \
+              --output text 2>/dev/null)
+            # Normalize to empty
+            if [[ -z "$arn" || "$arn" == "None" || "$arn" == "null" ]]; then
+              echo ""
+            else
+              echo "$arn"
+            fi
           }
-          B_ACK="$(get_arn tf-backend-rw)"; [ "$B_ACK" = "None" ] && B_ACK=""
-          VPC_APPLY="$(get_arn tf-vpc-apply)"; [ "$VPC_APPLY" = "None" ] && VPC_APPLY=""
-          [ -n "$B_ACK" ]     && echo "TF_VAR_existing_backend_rw_policy_arn=$B_ACK"    >> "$GITHUB_ENV"
-          [ -n "$VPC_APPLY" ] && echo "TF_VAR_existing_vpc_apply_policy_arn=$VPC_APPLY" >> "$GITHUB_ENV"
+
+          B_ACK="$(get_arn tf-backend-rw)"
+          VPC_APPLY="$(get_arn tf-vpc-apply)"
+
+          # Export only when present
+          if [[ -n "$B_ACK" ]]; then
+            echo "TF_VAR_existing_backend_rw_policy_arn=$B_ACK" >> "$GITHUB_ENV"
+          fi
+          if [[ -n "$VPC_APPLY" ]]; then
+            echo "TF_VAR_existing_vpc_apply_policy_arn=$VPC_APPLY" >> "$GITHUB_ENV"
+          fi
+
+          echo "Detected tf-backend-rw: ${B_ACK:-<none>}"
+          echo "Detected tf-vpc-apply : ${VPC_APPLY:-<none>}"
+
+          # Always succeed; later TF will decide to (re)create if these are empty
+          exit 0
+    
       
       - name: Debug TF vars for S3/DDB
         run: |
