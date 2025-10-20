@@ -34,7 +34,7 @@ resource "aws_iam_policy" "tf_backend_rw" {
         ]
       },
       {
-        Sid      = "DynamoDBLocking",
+        Sid      = "DynamoDBLocking,
         Effect   = "Allow",
         Action   = [
           "dynamodb:DescribeTable", 
@@ -49,10 +49,9 @@ resource "aws_iam_policy" "tf_backend_rw" {
         ]
       },
       {
-        "Version": "2012-10-17",
-        "Statement": [{
-        "Effect": "Allow",
-        "Action": [
+        Sid      = "IamCreationPolicy", 
+        Effect = "Allow",
+        Action = [
           "iam:CreatePolicy",
           "iam:GetPolicy",
           "iam:ListPolicies",
