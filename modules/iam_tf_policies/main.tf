@@ -61,7 +61,7 @@ resource "aws_iam_policy" "tf_backend_rw" {
           "iam:AttachRolePolicy",
           "iam:DetachRolePolicy"
         ],
-        "Resource": "*"
+        Resource = "*"
       }
     ]
   })
