@@ -2,7 +2,7 @@ data "aws_caller_identity" "current" {}
 
 locals {
   account_id = data.aws_caller_identity.current.account_id
-  existing_provider_arn = "arn:aws:iam::${local.account_id}:oidc-provider/${var.oidc_provider_content}"
+  #existing_provider_arn = "arn:aws:iam::${local.account_id}:oidc-provider/${var.oidc_provider_content}"
 }
 
 module "vpc" {
@@ -66,7 +66,7 @@ module "github_oidc" {
   source = "./modules/github_oidc"
 
   create_oidc_provider = true
-  oidc_provider_arn    = local.existing_provider_arn  # <- pass your discovered ARN
+  #oidc_provider_arn    = local.existing_provider_arn  # <- pass your discovered ARN
   create_oidc_role     = true
 
   repositories = var.repository_list

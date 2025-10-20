@@ -85,15 +85,6 @@ jobs:
             rm "$f"
             i=$((i+1))
           done
-
-      - name: Debug module contents
-        run: |
-          echo "===== modules/github_oidc tree ====="
-          ls -la modules/github_oidc || true
-          echo "===== variables.tf (first 60 lines) ====="
-          sed -n '1,60p' modules/github_oidc/variables.tf || true
-          echo "===== main.tf (first 60 lines) ====="
-          sed -n '1,60p' modules/github_oidc/main.tf || true    
       
       - name: Terraform init (local backend)
         run: terraform init -reconfigure -input=false
@@ -104,66 +95,43 @@ jobs:
         run: |
           set -euo pipefail
           get_arn () {
-            local name="$1"
-            local arn
-            arn=$(aws iam list-policies --scope Local \
-                    --query "Policies[?PolicyName=='${name}'].Arn | [0]" \
-                    --output text 2>/dev/null || echo "")
-            if [ "$arn" = "None" ] || [ "$arn" = "null" ] || [ -z "$arn" ]; then
-              echo ""
-            else
-              echo "$arn"
-            fi
+            aws iam list-policies --scope Local \
+              --query "Policies[?PolicyName=='$1'].Arn | [0]" \
+              --output text 2>/dev/null || true
           }
-          B_ACK="$(get_arn tf-backend-rw)"
-          VPC_APPLY="$(get_arn tf-vpc-apply)"
+          B_ACK="$(get_arn tf-backend-rw)"; [ "$B_ACK" = "None" ] && B_ACK=""
+          VPC_APPLY="$(get_arn tf-vpc-apply)"; [ "$VPC_APPLY" = "None" ] && VPC_APPLY=""
+          echo "TF_VAR_existing_backend_rw_policy_arn=$B_ACK"    >> "$GITHUB_ENV"
+          echo "TF_VAR_existing_vpc_apply_policy_arn=$VPC_APPLY" >> "$GITHUB_ENV"    
 
-          echo "TF_VAR_existing_backend_rw_policy_arn=$B_ACK"     >> "$GITHUB_ENV"
-          echo "TF_VAR_existing_vpc_apply_policy_arn=$VPC_APPLY"  >> "$GITHUB_ENV"
-
-          echo "Detected tf-backend-rw: ${B_ACK:-<none>}"
-          echo "Detected tf-vpc-apply : ${VPC_APPLY:-<none>}"
-
-    # avoid duplicated github oidc iam role
-      - name: Detect existing github oidc iam role
+      # avoid duplicated github oidc iam role
+      - name: Detect existing GitHub OIDC provider/role
+        id: detect_oidc
         shell: bash
         run: |
           set -euo pipefail
-
-          # --- Detect existing GitHub OIDC provider by URL (safe with pipefail) ---
-          # Collect ARNs first (no failing pipeline), then loop.
+          OIDC_URL="https://token.actions.githubusercontent.com"
           PROV_ARN=""
           ARNS=$(aws iam list-open-id-connect-providers \
-              --query 'OpenIDConnectProviderList[].Arn' \
-              --output text 2>/dev/null || true)
-
-          # Iterate ARNs (space or tab separated). No pipelines here, so pipefail won't bite.
+             --query 'OpenIDConnectProviderList[].Arn' --output text 2>/dev/null || true)
           for A in $ARNS; do
-            URL=$(aws iam get-open-id-connect-provider \
-               --open-id-connect-provider-arn "$A" \
-               --query 'Url' --output text 2>/dev/null || true)
-            if [ "$URL" = "https://token.actions.githubusercontent.com" ]; then
-              PROV_ARN="$A"
-              break
-            fi
+            URL=$(aws iam get-open-id-connect-provider --open-id-connect-provider-arn "$A" \
+             --query 'Url' --output text 2>/dev/null || true)
+            [ "$URL" = "$OIDC_URL" ] && PROV_ARN="$A" && break
           done
-
-          # --- Detect existing role (don't fail if it's missing) ---
           ROLE_ARN=$(aws iam get-role --role-name github-oidc-provider-aws \
-              --query 'Role.Arn' --output text 2>/dev/null || true)
-          # Normalize AWS CLI "None"/"null"
+                 --query 'Role.Arn' --output text 2>/dev/null || true)
           [ "$ROLE_ARN" = "None" ] && ROLE_ARN=""
-          [ "$ROLE_ARN" = "null" ] && ROLE_ARN=""
 
-          # Export for Terraform
-          echo "TF_VAR_existing_oidc_provider_arn=${PROV_ARN}" >> "$GITHUB_ENV"
-          echo "TF_VAR_existing_role_arn=${ROLE_ARN}"         >> "$GITHUB_ENV"
+          if [ -n "$PROV_ARN" ]; then
+            echo "TF_VAR_create_oidc_provider=false"  >> "$GITHUB_ENV"
+            echo "TF_VAR_oidc_provider_arn=$PROV_ARN" >> "$GITHUB_ENV"
+          fi
+          [ -n "$ROLE_ARN" ] && echo "TF_VAR_create_oidc_role=false" >> "$GITHUB_ENV"
 
-          # Optionally prevent creation in the module
-          if [ -n "$PROV_ARN" ]; then echo "TF_VAR_create_oidc_provider=false" >> "$GITHUB_ENV"; fi
-          if [ -n "$ROLE_ARN" ]; then echo "TF_VAR_create_oidc_role=false"     >> "$GITHUB_ENV"; fi
-          echo "Provider: ${PROV_ARN:-<none>}  Role: ${ROLE_ARN:-<none>}"
-
+          echo "PROV_ARN=$PROV_ARN" >> "$GITHUB_OUTPUT"
+          echo "ROLE_ARN=$ROLE_ARN" >> "$GITHUB_OUTPUT"
+    
       # Bootstrap core infra (targets on purpose, to create backend + OIDC)
       - name: Terraform apply (bootstrap modules only)
         run: |
@@ -178,39 +146,30 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
+      # Export outputs for the deploy job
       - name: Export bootstrap outputs
         id: export_bootstrap
+        shell: bash
         run: |
           set -euo pipefail
           tfjson=$(terraform output -json || echo '{}')
-
-          # read the correct keys (adjust these three lines to your actual outputs)
           BUCKET=$(echo "$tfjson" | jq -r '.s3_bucket_id.value // empty')
-          TABLE=$(echo "$tfjson"  | jq -r '.lock_table_name.value')
-          KEY=$(echo "$tfjson" | jq -r '.backend_key.value // empty')
+          TABLE=$(echo "$tfjson"  | jq -r '.lock_table_name.value // empty')
+          KEY=$(echo "$tfjson"    | jq -r '.backend_key.value // empty')
+          ROLE_ARN_TF=$(echo "$tfjson" | jq -r '.effective_role_arn.value // empty')
+          OIDC_ARN_TF=$(echo "$tfjson" | jq -r '.effective_oidc_provider_arn.value // empty')
 
-          # Sensible fallback if key not present for any reason
-          if [ -z "$KEY" ]; then KEY="tfstate/terraform.tfstate"; fi 
-          
-          #  use the actual module output name; earlier we defined "effective_role_arn"
-          ROLE_ARN=$(echo "$tfjson" | jq -r '.effective_role_arn.value // empty')
+          # fallbacks to values discovered in the detect step
+          [ -z "$KEY" ] && KEY="tfstate/terraform.tfstate"
+          [ -z "$ROLE_ARN_TF" ] && ROLE_ARN_TF="${{ steps.detect_oidc.outputs.ROLE_ARN }}"
+          [ -z "$OIDC_ARN_TF" ] && OIDC_ARN_TF="${{ steps.detect_oidc.outputs.PROV_ARN }}"
 
-          # fallback: if TF output was empty, detect by name (non-fatal)
-          if [ -z "$ROLE_ARN" ]; then
-            ROLE_ARN=$(aws iam get-role \
-              --role-name github-oidc-provider-aws \
-              --query 'Role.Arn' --output text 2>/dev/null || true)
-              [ "$ROLE_ARN" = "None" ] && ROLE_ARN=""
-              [ "$ROLE_ARN" = "null" ] && ROLE_ARN=""
-          fi
-
-          echo "bucket=$BUCKET"             >> $GITHUB_OUTPUT
-          echo "key=$KEY"                   >> $GITHUB_OUTPUT
-          echo "table=$TABLE"               >> $GITHUB_OUTPUT
-          echo "use_lockfile=true"          >> $GITHUB_OUTPUT
-          echo "role_arn=$ROLE_ARN"         >> $GITHUB_OUTPUT
-          echo "Resolved: bucket=${BUCKET:-<empty>} table=${TABLE:-<empty>} role_arn=${ROLE_ARN:-<empty>}"
-
+          echo "bucket=$BUCKET"       >> $GITHUB_OUTPUT
+          echo "table=$TABLE"         >> $GITHUB_OUTPUT
+          echo "key=$KEY"             >> $GITHUB_OUTPUT
+          echo "role_arn=$ROLE_ARN_TF" >> $GITHUB_OUTPUT
+          echo "arn_oidc=$OIDC_ARN_TF" >> $GITHUB_OUTPUT    
+      
       - name: Restore S3 backend files
         run: |
           set -euo pipefail
@@ -231,8 +190,8 @@ jobs:
       bucket:       ${{ steps.export_bootstrap.outputs.bucket }}
       table:        ${{ steps.export_bootstrap.outputs.table }}
       key:          ${{ steps.export_bootstrap.outputs.key }}
-      use_lockfile: ${{ steps.export_bootstrap.outputs.use_lockfile }}
       role_arn:     ${{ steps.export_bootstrap.outputs.role_arn }}
+      arn_oidc:     ${{ steps.export_bootstrap.outputs.arn_oidc }}
     
   deploy:
     name: Backend migrate ➜ Plan / Apply (OIDC)
@@ -245,7 +204,7 @@ jobs:
       TF_BACKEND_BUCKET:       ${{ needs.bootstrap.outputs.bucket }}
       TF_BACKEND_KEY:          ${{ needs.bootstrap.outputs.key }}
       TF_BACKEND_DDB_TABLE:    ${{ needs.bootstrap.outputs.table }}
-      TF_BACKEND_USE_LOCKFILE: ${{ needs.bootstrap.outputs.use_lockfile }}
+      TF_VAR_oidc_provider_arn: ${{ needs.bootstrap.outputs.arn_oidc }} 
       AWS_OIDC_ROLE_ARN:       ${{ needs.bootstrap.outputs.role_arn }}
 
     steps:

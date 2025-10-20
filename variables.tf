@@ -56,7 +56,7 @@ variable "lock_table" {
   type        = string
 }
 
-variable oidc_provider_content {
-  description = "OIDC provider for the personal github repositories"
-  default     = "token.actions.githubusercontent.com"
-}
+#variable oidc_provider_content {
+#  description = "OIDC provider for the personal github repositories"
+#  default     = "token.actions.githubusercontent.com"
+#}
