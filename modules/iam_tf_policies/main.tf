@@ -1,11 +1,4 @@
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = ">= 5.0"
-    }
-  }
-}
+
 
 data "aws_caller_identity" "current" {}
 
@@ -44,8 +37,8 @@ data "external" "vpc_apply_probe" {
   ]
 }
 
-# Decide the "existing" ARNs: prefer explicit inputs; else probe results; else ""
 locals {
+  # Decide the "existing" ARNs: prefer explicit inputs; else probe results; else ""
   existing_backend_rw_arn = (
     length(trimspace(var.existing_backend_rw_policy_arn)) > 0
     ? trimspace(var.existing_backend_rw_policy_arn)
@@ -63,8 +56,9 @@ locals {
 # IAM Policy: create only when we couldn't detect an existing one
 # -----------------------------------------------------------------------------
 resource "aws_iam_policy" "tf_backend_rw" {
-  count = length(trimspace(var.existing_backend_rw_policy_arn)) > 0 ? 0 : 1
+  #count = length(trimspace(var.existing_backend_rw_policy_arn)) > 0 ? 0 : 1
 
+  count = length(local.existing_backend_rw_arn) > 0 ? 0 : 1
   name = var.policy_name_backend_rw
   tags = var.tags
 
@@ -106,8 +100,9 @@ resource "aws_iam_policy" "tf_backend_rw" {
 }
 
 resource "aws_iam_policy" "tf_vpc_apply" {
-  count = length(trimspace(var.existing_vpc_apply_policy_arn)) > 0 ? 0 : 1
-
+  #count = length(trimspace(var.existing_vpc_apply_policy_arn)) > 0 ? 0 : 1
+  
+  count = length(local.existing_vpc_apply_arn) > 0 ? 0 : 1
   name = var.policy_name_vpc_apply
   tags = var.tags
 
