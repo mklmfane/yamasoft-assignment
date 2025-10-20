@@ -55,7 +55,14 @@ variable "lock_table" {
   type        = string
 }
 
-#variable oidc_provider_content {
-#  description = "OIDC provider for the personal github repositories"
-#  default     = "token.actions.githubusercontent.com"
-#}
+variable "existing_backend_rw_policy_arn" {
+  description = "If set, skip creating tf-backend-rw and use this ARN."
+  type        = string
+  default     = ""
+}
+
+variable "existing_vpc_apply_policy_arn" {
+  description = "If set, skip creating tf-vpc-apply and use this ARN."
+  type        = string
+  default     = ""
+}
