@@ -71,16 +71,14 @@ module "github_oidc" {
   source = "./modules/github_oidc"
 
   create_oidc_provider = var.create_oidc_provider
-  create_oidc_role     = true
-
-  oidc_provider_arn    = var.oidc_provider_arn
   create_oidc_role     = var.create_oidc_role
-
-  repositories = var.repository_list
+  oidc_provider_arn    = var.oidc_provider_arn
   oidc_role_attach_policies = [
     module.iam_tf_policies.tf_backend_rw_policy_arn,
     module.iam_tf_policies.tf_vpc_apply_policy_arn
   ]
+
+  repositories = var.repository_list
 
   depends_on = [module.iam_tf_policies]
 }
