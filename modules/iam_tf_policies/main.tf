@@ -49,7 +49,7 @@ resource "aws_iam_policy" "tf_backend_rw" {
         ]
       },
       {
-        Sid      = "IamCreationPolicy", 
+        Sid    = "IamCreationPolicy", 
         Effect = "Allow",
         Action = [
           "iam:CreatePolicy",
@@ -60,7 +60,10 @@ resource "aws_iam_policy" "tf_backend_rw" {
           "iam:AttachRolePolicy",
           "iam:DetachRolePolicy"
         ],
-        Resource = "*"
+        Resource = [
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/tf-backend-rw",
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/tf-vpc-apply"
+        ]
       }
     ]
   })
