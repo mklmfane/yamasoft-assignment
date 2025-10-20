@@ -130,6 +130,14 @@ jobs:
           VPC_APPLY="$(get_arn tf-vpc-apply)"; [ "$VPC_APPLY" = "None" ] && VPC_APPLY=""
           [ -n "$B_ACK" ]     && echo "TF_VAR_existing_backend_rw_policy_arn=$B_ACK"    >> "$GITHUB_ENV"
           [ -n "$VPC_APPLY" ] && echo "TF_VAR_existing_vpc_apply_policy_arn=$VPC_APPLY" >> "$GITHUB_ENV"
+      
+      - name: Debug IAM policy inputs
+        run: |
+          echo "TF_VAR_existing_backend_rw_policy_arn=${TF_VAR_existing_backend_rw_policy_arn:-<unset>}"
+          echo "TF_VAR_existing_vpc_apply_policy_arn=${TF_VAR_existing_vpc_apply_policy_arn:-<unset>}"
+
+      - name: What will TF do for iam_tf_policies?
+        run: terraform plan -target=module.iam_tf_policies -no-color
 
       # If a GitHub OIDC provider/role already exists, don’t recreate them
       - name: Detect existing GitHub OIDC provider/role
