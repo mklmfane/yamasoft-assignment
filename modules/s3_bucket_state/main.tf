@@ -83,9 +83,3 @@ resource "aws_dynamodb_table" "tf_locks" {
     Environment = "dev"
   } 
 }
-
-# Effective names: single source of truth for consumers
-locals {
-  s3_bucket_id_effective    = var.create_bucket     ? aws_s3_bucket.tf_state[0].id : var.existing_bucket_name
-  lock_table_name_effective = var.create_lock_table ? aws_dynamodb_table.tf_locks[0].name : var.existing_lock_table
-}
