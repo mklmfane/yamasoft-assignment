@@ -371,7 +371,7 @@ jobs:
           fi
           # Optional: only include dynamodb_table if you actually use it
           if [ -n "${TF_BACKEND_DDB_TABLE:-}" ]; then
-            ARGS+=(-backend-config="use_lockfile=false")
+            ARGS+=(-backend-config="dynamodb_table=${TF_BACKEND_DDB_TABLE}")
           fi
           # Do NOT pass use_lockfile; it isn't an S3 backend setting and if empty it breaks init
           terraform init "${ARGS[@]}"        
