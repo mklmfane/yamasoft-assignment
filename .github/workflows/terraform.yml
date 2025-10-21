@@ -16,7 +16,7 @@ on:
         type: choice
         options: ["true","false"]
   push:
-    branches: ["master"]
+    branches: ["master", "main"]
   pull_request:
     branches: ["*"]
 
@@ -27,6 +27,8 @@ permissions:
 env:
   TF_IN_AUTOMATION: "true"
   AWS_REGION: eu-west-1
+  TF_VAR_bucket_prefix_name: tf-state-s3-bucket
+  TF_VAR_lock_table: tf-state-lock
 
 jobs:
   bootstrap:
@@ -38,7 +40,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Guard: we need long-lived AWS keys just for bootstrap
+      # Use long-lived keys ONLY for bootstrap
       - name: Require AWS secrets for bootstrap
         env:
           HAS_AKID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -67,7 +69,7 @@ jobs:
           terraform_version: 1.13.3
           terraform_wrapper: false
 
-      # Temporarily remove any "backend \"s3\"" blocks so we can init locally
+      # Temporarily remove any S3 backend blocks so we can init locally
       - name: Temporarily disable S3 backend files
         run: |
           set -euo pipefail
@@ -80,145 +82,201 @@ jobs:
           printf '%s\n' "${files[@]}" > .ci-backend-stash/manifest.txt
           i=0
           for f in "${files[@]}"; do
-            echo "Stashing $f"
             cp "$f" ".ci-backend-stash/file_${i}"
             rm "$f"
             i=$((i+1))
           done
 
-      - name: Debug module contents
-        run: |
-          echo "===== modules/github_oidc tree ====="
-          ls -la modules/github_oidc || true
-          echo "===== variables.tf (first 60 lines) ====="
-          sed -n '1,60p' modules/github_oidc/variables.tf || true
-          echo "===== main.tf (first 60 lines) ====="
-          sed -n '1,60p' modules/github_oidc/main.tf || true    
-      
       - name: Terraform init (local backend)
         run: terraform init -reconfigure -input=false
 
-      # Avoid duplicate IAM policies: detect existing ARNs and pass as TF vars
-      - name: Detect existing IAM policy ARNs
+      - name: Detect existing S3 bucket & DynamoDB table
         shell: bash
         run: |
           set -euo pipefail
+
+          PREFIX="${TF_VAR_bucket_prefix_name:-tf-state-s3-bucket}"
+          SUFFIX="77g78ef5w"
+          BUCKET="${PREFIX}-${SUFFIX}"
+
+          # Buckets are global - list and match by name
+          EXISTING_BUCKET="$(aws s3api list-buckets \
+            --query "Buckets[?Name=='${BUCKET}'].Name | [0]" \
+            --output text 2>/dev/null || true)"
+          if [ "${EXISTING_BUCKET}" != "None" ] && [ -n "${EXISTING_BUCKET}" ]; then
+            echo "Detected bucket: ${EXISTING_BUCKET}"
+            echo "TF_VAR_create_bucket=false"                    >> "$GITHUB_ENV"
+            echo "TF_VAR_existing_bucket_name=${EXISTING_BUCKET}" >> "$GITHUB_ENV"
+          fi
+
+          LOCK="${TF_VAR_lock_table:-tf-state-lock}"
+          if aws dynamodb describe-table --table-name "${LOCK}" >/dev/null 2>&1; then
+            echo "Detected lock table: ${LOCK}"
+            echo "TF_VAR_create_lock_table=false"               >> "$GITHUB_ENV"
+            echo "TF_VAR_existing_lock_table=${LOCK}"           >> "$GITHUB_ENV"
+          fi
+    
+      # If these policies already exist, tell TF to skip creating them
+      - name: Detect existing IAM policy ARNs (robust)
+        shell: bash
+        env:
+          AWS_PAGER: ""           # avoid paging
+          AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
+        run: |
+          set -o pipefail
+          set +e  # do not fail the step on aws/list errors
+
           get_arn () {
             local name="$1"
+            # Use safe JMESPath and swallow errors
             local arn
-            arn=$(aws iam list-policies --scope Local \
-                    --query "Policies[?PolicyName=='${name}'].Arn | [0]" \
-                    --output text 2>/dev/null || echo "")
-            if [ "$arn" = "None" ] || [ "$arn" = "null" ] || [ -z "$arn" ]; then
+            arn=$(aws iam list-policies --scope Local --no-paginate \
+              --query "Policies[?PolicyName=='${name}'].Arn | [0]" \
+              --output text 2>/dev/null)
+            # Normalize to empty
+            if [[ -z "$arn" || "$arn" == "None" || "$arn" == "null" ]]; then
               echo ""
             else
               echo "$arn"
             fi
           }
+
           B_ACK="$(get_arn tf-backend-rw)"
           VPC_APPLY="$(get_arn tf-vpc-apply)"
 
-          echo "TF_VAR_existing_backend_rw_policy_arn=$B_ACK"     >> "$GITHUB_ENV"
-          echo "TF_VAR_existing_vpc_apply_policy_arn=$VPC_APPLY"  >> "$GITHUB_ENV"
+          # Export only when present
+          if [[ -n "$B_ACK" ]]; then
+            echo "TF_VAR_existing_backend_rw_policy_arn=$B_ACK" >> "$GITHUB_ENV"
+          fi
+          if [[ -n "$VPC_APPLY" ]]; then
+            echo "TF_VAR_existing_vpc_apply_policy_arn=$VPC_APPLY" >> "$GITHUB_ENV"
+          fi
 
           echo "Detected tf-backend-rw: ${B_ACK:-<none>}"
           echo "Detected tf-vpc-apply : ${VPC_APPLY:-<none>}"
 
-          
-    # avoid duplicated github oidc iam role
-      - name: Dectect existing github oidc iam role
+          # Always succeed; later TF will decide to (re)create if these are empty
+          exit 0
+    
+      - name: Debug TF vars for S3/DDB
+        run: |
+          echo "TF_VAR_create_bucket=${TF_VAR_create_bucket:-<unset>}"
+          echo "TF_VAR_existing_bucket_name=${TF_VAR_existing_bucket_name:-<unset>}"
+          echo "TF_VAR_create_lock_table=${TF_VAR_create_lock_table:-<unset>}"
+          echo "TF_VAR_existing_lock_table=${TF_VAR_existing_lock_table:-<unset>}"
+
+      - name: Debug TF vars for IAM policies
+        run: |
+          echo "TF_VAR_existing_backend_rw_policy_arn=${TF_VAR_existing_backend_rw_policy_arn:-<unset>}"
+          echo "TF_VAR_existing_vpc_apply_policy_arn=${TF_VAR_existing_vpc_apply_policy_arn:-<unset>}"
+
+      - name: Debug OIDC TF vars
+        run: |
+          echo "TF_VAR_create_oidc_provider=${TF_VAR_create_oidc_provider:-<unset>}"
+          echo "TF_VAR_oidc_provider_arn=${TF_VAR_oidc_provider_arn:-<unset>}"
+          echo "TF_VAR_create_oidc_role=${TF_VAR_create_oidc_role:-<unset>}"
+
+      - name: Plan targeted modules
+        run: |
+          terraform plan -target=module.s3_bucket_state_oidc -no-color
+          terraform plan -target=module.iam_tf_policies     -no-color
+          terraform plan -target=module.github_oidc         -no-color    
+
+      # If a GitHub OIDC provider/role already exists, don’t recreate them
+      - name: Detect existing GitHub OIDC provider/role
+        id: detect_oidc
         shell: bash
+        env:
+          AWS_PAGER: ""
         run: |
           set -euo pipefail
 
-          # --- Detect existing GitHub OIDC provider by URL (safe with pipefail) ---
-          # Collect ARNs first (no failing pipeline), then loop.
+          WANT_HOST="token.actions.githubusercontent.com"  # normalized target
           PROV_ARN=""
           ARNS=$(aws iam list-open-id-connect-providers \
-              --query 'OpenIDConnectProviderList[].Arn' \
-              --output text 2>/dev/null || true)
+            --query 'OpenIDConnectProviderList[].Arn' --output text 2>/dev/null || true)
 
-          # Iterate ARNs (space or tab separated). No pipelines here, so pipefail won't bite.
           for A in $ARNS; do
             URL=$(aws iam get-open-id-connect-provider \
-               --open-id-connect-provider-arn "$A" \
-               --query 'Url' --output text 2>/dev/null || true)
-            if [ "$URL" = "https://token.actions.githubusercontent.com" ]; then
+            --open-id-connect-provider-arn "$A" \
+            --query 'Url' --output text 2>/dev/null || true)
+          # normalize what AWS returns
+            URL=${URL#https://}
+            URL=${URL#http://}
+            if [ "$URL" = "$WANT_HOST" ]; then
               PROV_ARN="$A"
               break
             fi
           done
 
-          # --- Detect existing role (don't fail if it's missing) ---
           ROLE_ARN=$(aws iam get-role --role-name github-oidc-provider-aws \
-              --query 'Role.Arn' --output text 2>/dev/null || true)
-          # Normalize AWS CLI "None"/"null"
+            --query 'Role.Arn' --output text 2>/dev/null || true)
           [ "$ROLE_ARN" = "None" ] && ROLE_ARN=""
-          [ "$ROLE_ARN" = "null" ] && ROLE_ARN=""
 
-          # Export for Terraform
-          echo "TF_VAR_existing_oidc_provider_arn=${PROV_ARN}" >> "$GITHUB_ENV"
-          echo "TF_VAR_existing_role_arn=${ROLE_ARN}"         >> "$GITHUB_ENV"
+          # Export variables that the ROOT module actually consumes
+          if [ -n "$PROV_ARN" ]; then
+            echo "TF_VAR_create_oidc_provider=false"  >> "$GITHUB_ENV"
+            echo "TF_VAR_oidc_provider_arn=$PROV_ARN" >> "$GITHUB_ENV"
+          fi
+          if [ -n "$ROLE_ARN" ]; then
+            echo "TF_VAR_create_oidc_role=false" >> "$GITHUB_ENV"
+          fi
 
-          # Optionally prevent creation in the module
-          if [ -n "$PROV_ARN" ]; then echo "TF_VAR_create_oidc_provider=false" >> "$GITHUB_ENV"; fi
-          if [ -n "$ROLE_ARN" ]; then echo "TF_VAR_create_oidc_role=false"     >> "$GITHUB_ENV"; fi
-
-          echo "Provider: ${PROV_ARN:-<none>}  Role: ${ROLE_ARN:-<none>}"
-
-      # Bootstrap core infra (targets on purpose, to create backend + OIDC)
+          echo "PROV_ARN=$PROV_ARN" >> "$GITHUB_OUTPUT"
+          echo "ROLE_ARN=$ROLE_ARN" >> "$GITHUB_OUTPUT"
+          
+          
+      # Create/ensure: S3+DDB backend, IAM policies (or reuse), OIDC provider+role (or reuse)
       - name: Terraform apply (bootstrap modules only)
         run: |
           set -euo pipefail
           terraform apply \
             -input=false \
-            -auto-approve \
             -target=module.s3_bucket_state_oidc \
             -target=module.iam_tf_policies \
-            -target=module.github_oidc
+            -target=module.github_oidc \
+            -auto-approve
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
+      # Export outputs for the deploy job (prefer “effective” outputs)
       - name: Export bootstrap outputs
-        id: out
+        id: export_bootstrap
+        shell: bash
         run: |
           set -euo pipefail
           tfjson=$(terraform output -json || echo '{}')
 
-          # read the correct keys (adjust these three lines to your actual outputs)
-          BUCKET=$(echo "$tfjson" | jq -r '.s3_bucket_id.value // empty')
-          KEY=$(echo "$tfjson" | jq -r '.backend_key.value // empty')
-          USE_LOCKFILE=$(echo "$tfjson" | jq -r '.use_lockfile.value // "true"')
+          BUCKET=$(echo "$tfjson" | jq -r '.s3_bucket_id_output.value // .s3_bucket_id.value // empty')
+          TABLE=$(echo "$tfjson"  | jq -r '.lock_table_name_output.value // .lock_table_name.value // empty')
+          KEY=$(echo "$tfjson"    | jq -r '.backend_key.value // empty')
 
-          # 👇 use the actual module output name; earlier we defined "effective_role_arn"
-          ROLE_ARN=$(echo "$tfjson" | jq -r '.effective_role_arn.value // empty')
+          ROLE_ARN_TF=$(echo "$tfjson" | jq -r '.effective_role_arn.value // empty')
+          OIDC_ARN_TF=$(echo "$tfjson" | jq -r '.effective_oidc_provider_arn.value // empty')
+          BACKEND_POL=$(echo "$tfjson" | jq -r '.tf_backend_rw_policy_arn.value // .backend_policy_arn.value // empty')
+          VPC_APPLY_POL=$(echo "$tfjson" | jq -r '.tf_vpc_apply_policy_arn.value // .vpc_apply_policy_arn.value // empty')
 
-          # fallback: if TF output was empty, detect by name (non-fatal)
-          if [ -z "$ROLE_ARN" ]; then
-            ROLE_ARN=$(aws iam get-role \
-              --role-name github-oidc-provider-aws \
-              --query 'Role.Arn' --output text 2>/dev/null || true)
-              [ "$ROLE_ARN" = "None" ] && ROLE_ARN=""
-              [ "$ROLE_ARN" = "null" ] && ROLE_ARN=""
-          fi
+          [ -z "$KEY" ] && KEY="tfstate/terraform.tfstate"
+          [ -z "$ROLE_ARN_TF" ] && ROLE_ARN_TF="${{ steps.detect_oidc.outputs.ROLE_ARN }}"
+          [ -z "$OIDC_ARN_TF" ] && OIDC_ARN_TF="${{ steps.detect_oidc.outputs.PROV_ARN }}"
 
-          echo "bucket=$BUCKET"             >> $GITHUB_OUTPUT
-          echo "key=$KEY"                   >> $GITHUB_OUTPUT
-          echo "use_lockfile=$USE_LOCKFILE" >> $GITHUB_OUTPUT
-          echo "role_arn=$ROLE_ARN"         >> $GITHUB_OUTPUT
-          echo "Resolved role_arn: ${ROLE_ARN:-<empty>}"
+          echo "bucket=$BUCKET"                 >> $GITHUB_OUTPUT
+          echo "table=$TABLE"                   >> $GITHUB_OUTPUT
+          echo "key=$KEY"                       >> $GITHUB_OUTPUT
+          echo "role_arn=$ROLE_ARN_TF"          >> $GITHUB_OUTPUT
+          echo "arn_oidc=$OIDC_ARN_TF"          >> $GITHUB_OUTPUT
+          echo "backend_policy_arn=$BACKEND_POL" >> $GITHUB_OUTPUT
+          echo "vpc_apply_policy_arn=$VPC_APPLY_POL" >> $GITHUB_OUTPUT
 
       - name: Restore S3 backend files
         run: |
           set -euo pipefail
           if [ ! -f .ci-backend-stash/manifest.txt ]; then
-            echo "Nothing to restore."
             exit 0
           fi
           i=0
           while IFS= read -r dest; do
-            echo "Restoring to $dest"
             mkdir -p "$(dirname "$dest")"
             mv ".ci-backend-stash/file_${i}" "$dest"
             i=$((i+1))
@@ -226,22 +284,30 @@ jobs:
           rm -rf .ci-backend-stash
 
     outputs:
-      bucket:       ${{ steps.out.outputs.bucket }}
-      key:          ${{ steps.out.outputs.key }}
-      use_lockfile: ${{ steps.out.outputs.use_lockfile }}
-      role_arn:     ${{ steps.out.outputs.role_arn }}
+      bucket:               ${{ steps.export_bootstrap.outputs.bucket }}
+      table:                ${{ steps.export_bootstrap.outputs.table }}
+      key:                  ${{ steps.export_bootstrap.outputs.key }}
+      role_arn:             ${{ steps.export_bootstrap.outputs.role_arn }}
+      arn_oidc:             ${{ steps.export_bootstrap.outputs.arn_oidc }}
+      backend_policy_arn:   ${{ steps.export_bootstrap.outputs.backend_policy_arn }}
+      vpc_apply_policy_arn: ${{ steps.export_bootstrap.outputs.vpc_apply_policy_arn }}  
 
   deploy:
     name: Backend migrate ➜ Plan / Apply (OIDC)
     runs-on: ubuntu-latest
     needs: bootstrap
-    if: ${{ needs.bootstrap.result == 'success' && needs.bootstrap.outputs.role_arn != '' }}
+
+    if: ${{ needs.bootstrap.result == 'success' && needs.bootstrap.outputs.role_arn != '' && needs.bootstrap.outputs.bucket != '' && needs.bootstrap.outputs.key != '' }}  
 
     env:
       TF_BACKEND_BUCKET:       ${{ needs.bootstrap.outputs.bucket }}
       TF_BACKEND_KEY:          ${{ needs.bootstrap.outputs.key }}
-      TF_BACKEND_USE_LOCKFILE: ${{ needs.bootstrap.outputs.use_lockfile }}
+      TF_BACKEND_DDB_TABLE:    ${{ needs.bootstrap.outputs.table }}
+      TF_VAR_oidc_provider_arn: ${{ needs.bootstrap.outputs.arn_oidc }} 
       AWS_OIDC_ROLE_ARN:       ${{ needs.bootstrap.outputs.role_arn }}
+
+      TF_VAR_existing_backend_rw_policy_arn: ${{ needs.bootstrap.outputs.backend_policy_arn }}
+      TF_VAR_existing_vpc_apply_policy_arn:  ${{ needs.bootstrap.outputs.vpc_apply_policy_arn }}
 
     steps:
       - name: Checkout
@@ -280,15 +346,35 @@ jobs:
       - name: Terraform fmt (non-blocking)
         run: terraform fmt -recursive -diff || true
 
-      - name: Terraform init (S3 backend, migrate state)
+      # flip creation flags for second (and future) runs
+      - name: Set TF vars for existing state resources
         run: |
-          terraform init \
-            -migrate-state \
-            -input=false \
-            -backend-config="bucket=${TF_BACKEND_BUCKET}" \
-            -backend-config="key=${TF_BACKEND_KEY}" \
-            -backend-config="region=${AWS_REGION}" \
-            -backend-config="use_lockfile=${TF_BACKEND_USE_LOCKFILE}"
+          echo "TF_VAR_create_bucket=false"                         >> $GITHUB_ENV
+          echo "TF_VAR_create_lock_table=false"                     >> $GITHUB_ENV
+          echo "TF_VAR_existing_bucket_name=${TF_BACKEND_BUCKET}"   >> $GITHUB_ENV
+          echo "TF_VAR_existing_lock_table=false" >> $GITHUB_ENV
+
+      - name: Terraform init (S3 backend, migrate state)
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARGS=(-migrate-state -input=false)
+
+          if [ -n "${TF_BACKEND_BUCKET:-}" ]; then
+            ARGS+=(-backend-config="bucket=${TF_BACKEND_BUCKET}")
+          fi
+          if [ -n "${TF_BACKEND_KEY:-}" ]; then
+            ARGS+=(-backend-config="key=${TF_BACKEND_KEY}")
+          fi
+          if [ -n "${AWS_REGION:-}" ]; then
+            ARGS+=(-backend-config="region=${AWS_REGION}")
+          fi
+          # Optional: only include dynamodb_table if you actually use it
+          if [ -n "${TF_BACKEND_DDB_TABLE:-}" ]; then
+            ARGS+=(-backend-config="use_lockfile=false")
+          fi
+          # Do NOT pass use_lockfile; it isn't an S3 backend setting and if empty it breaks init
+          terraform init "${ARGS[@]}"        
 
       - name: Terraform validate
         run: terraform validate -no-color
@@ -296,7 +382,13 @@ jobs:
       # PRs: plan only
       - name: Terraform plan (PR)
         if: github.event_name == 'pull_request'
-        run: terraform plan -input=false -no-color -out=tfplan.bin
+        run: |
+          set -euo pipefail
+          terraform plan -input=false \             
+            -target=module.s3_bucket_state_oidc \
+            -target=module.iam_tf_policies \
+            -no-color \ 
+            -out=tfplan.bin
 
       - name: Upload plan (PR)
         if: github.event_name == 'pull_request'
@@ -306,16 +398,17 @@ jobs:
           path: tfplan.bin
           retention-days: 3
 
-      # Non-PRs: plan & apply
-      - name: Terraform plan (apply path)
-        if: github.event_name != 'pull_request'
-        run: terraform plan -input=false -no-color
 
       - name: Terraform apply
         if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.do_apply == 'true')
-        run: terraform apply -input=false -auto-approve
+        run: |
+          set -euo pipefail
+          terraform apply -input=false -target=module.s3_bucket_state_oidc -target=module.iam_tf_policies -auto-approve
 
       # Manual destroy only
       - name: Terraform destroy (manual only)
-        if: github.event_name == 'workflow_dispatch' && inputs.do_destroy == 'true'
-        run: terraform destroy -input=false -auto-approve
+        if: github.event_name == 'workflow_dispatch' && inputs.do_destroy == 'true' 
+        run: |
+          set -euo pipefail 
+          terraform destroy -target=module.s3_bucket_state_oidc -target=module.iam_tf_policies -auto-approve
+

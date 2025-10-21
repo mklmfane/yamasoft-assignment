@@ -1,3 +1,9 @@
+variable "environment" {
+  description = "Chosen environment"
+  type  = string
+  default = "dev"
+}
+
 variable "vpc_name" {
   description = "The vpc name"
   type        = string
@@ -8,15 +14,40 @@ variable "repository_list" {
   type        = list(string)
 }
 
-variable "bucket_suffix_name" {
-  description = "bucket suffix"
-  type        = string    
+variable "bucket_prefix_name" {
+  description = "bucket prefix name"
+  type        = string
+  default     = "tf-state-s3-bucket"     
+}
+
+variable "create_bucket" { 
+  description = "Require to create s3 bucket"
+  type = bool   
+  default = true 
+}
+
+variable "existing_bucket_name" { 
+  description = "The name of existing bucket"
+  type = string 
+  default = "" 
+}
+
+variable "create_lock_table" { 
+  description = "Require to create dynamodb lock table"
+  type = bool   
+  default = true 
+}
+
+variable "existing_lock_table"  { 
+  description = "The name of existing dynamodb table lock "
+  type = string 
+  default = "" 
 }
 
 variable "region" {
   description = "Region of provisoning resources"
   type        = string    
-  default     = "eu-ewest-1"
+  default     = "eu-west-1"
 }
 
 variable "lock_table" {
@@ -24,19 +55,32 @@ variable "lock_table" {
   type        = string
 }
 
-variable "oidc_provider_arn" { 
-  description = "check existance of oidc provider arn"
-  type = string
-  default = "" 
+variable "existing_backend_rw_policy_arn" {
+  description = "If set, skip creating tf-backend-rw and use this ARN."
+  type        = string
+  default     = ""
 }
 
-variable "existing_role_arn" { 
-  description = "check existance of the role arn"
-  type = string 
-  default = "" 
+variable "existing_vpc_apply_policy_arn" {
+  description = "If set, skip creating tf-vpc-apply and use this ARN."
+  type        = string
+  default     = ""
 }
 
-variable oidc_provider_content {
-  description = "OIDC provider for the personal github repositories"
-  default     = "token.actions.githubusercontent.com"
+variable "create_oidc_provider" {
+  description = "Whether to create the OIDC provider (module passthrough)."
+  type        = bool
+  default     = true
+}
+
+variable "oidc_provider_arn" {
+  description = "Existing OIDC provider ARN to use."
+  type        = string
+  default     = ""
+}
+
+variable "create_oidc_role" {
+  description = "Whether to create the OIDC role (module passthrough)."
+  type        = bool
+  default     = true
 }

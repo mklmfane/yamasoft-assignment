@@ -16,7 +16,7 @@ You have been assigned a project to create a new Terraform module for creating a
 * The VPC should include **appropriate NAT gateways** and an **internet gateway**.
 
 Create module code to fulfill this request utilizing **Terragrunt/Terraform**. Show how you would use this module code to bring up the given architecture.
-
+The resolution of this exercise is in the root folder containing the terraform source codes presented in tf files format. 
 ---
 
 ## A Small EC2 App
@@ -50,6 +50,7 @@ References:
 * Create a **values.yml** that fulfills the chart’s values.
 * Show a **command that dumps the rendered templates**.
 
+The resolution of this exercise is in the folder exercise3/yamosoft-assignment  
 ### GitHub Actions
 
 * Create an example **GitHub Action** that uses **GitHub’s OpenID Connect (OIDC)** provider as a **trusted AWS identity** to deploy the above Helm chart into a **staging EKS cluster**.

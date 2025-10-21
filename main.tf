@@ -2,7 +2,6 @@ data "aws_caller_identity" "current" {}
 
 locals {
   account_id = data.aws_caller_identity.current.account_id
-  existing_provider_arn = "arn:aws:iam::${local.account_id}:oidc-provider/${var.oidc_provider_content}"
 }
 
 module "vpc" {
@@ -39,8 +38,20 @@ module "vpc" {
 module "s3_bucket_state_oidc" {
   source  = "./modules/s3_bucket_state"
 
-  bucket_suffix_name = var.bucket_suffix_name
+  bucket_prefix_name = var.bucket_prefix_name
   lock_table         = var.lock_table
+
+  # decide per environment:
+  #create_bucket      = var.create_bucket   # set false if the bucket already exists
+  #create_lock_table  = var.create_lock_table   # set false if the table already exists
+  
+  create_bucket      = var.create_bucket     && length(trimspace(var.existing_bucket_name))  == 0
+  create_lock_table  = var.create_lock_table && length(trimspace(var.existing_lock_table))   == 0
+  
+  state_key          = "envs/${var.environment}/terraform.tfstate"
+
+  existing_bucket_name = var.existing_bucket_name
+  existing_lock_table  = var.existing_lock_table
 }
 
 module "iam_tf_policies" {
@@ -50,6 +61,8 @@ module "iam_tf_policies" {
   lock_table_name = module.s3_bucket_state_oidc.lock_table_name
   region          = var.region
 
+  existing_backend_rw_policy_arn = var.existing_backend_rw_policy_arn
+  existing_vpc_apply_policy_arn  = var.existing_vpc_apply_policy_arn
   # ensure bucket/table exist first
   depends_on = [module.s3_bucket_state_oidc]
 }
@@ -57,17 +70,15 @@ module "iam_tf_policies" {
 module "github_oidc" {
   source = "./modules/github_oidc"
 
-  create_oidc_provider        = false
-  oidc_provider_arn           = local.existing_provider_arn
-  create_oidc_role            = true
-
-  repositories = var.repository_list
+  create_oidc_provider = var.create_oidc_provider
+  create_oidc_role     = var.create_oidc_role
+  oidc_provider_arn    = var.oidc_provider_arn
   oidc_role_attach_policies = [
     module.iam_tf_policies.tf_backend_rw_policy_arn,
     module.iam_tf_policies.tf_vpc_apply_policy_arn
   ]
 
-  depends_on = [
-    module.iam_tf_policies
-  ]
+  repositories = var.repository_list
+
+  depends_on = [module.iam_tf_policies]
 }
