@@ -1,25 +1,3 @@
-# ---------- Terraform ----------
-.terraform/
-*.tfstate
-*.tfstate.*
-*.tfplan
-*.out
-crash.log
-crash.*.log
-
-
-# Keep the lock file for reproducible providers
-!/.terraform.lock.hcl
-.terraform.lock.hcl
-
-
-# ---------- General ----------
-**/.trivy_cache/
-.idea/
-.DS_Store
-*.log
-.vscode/
-**/.venv/
 # General
 .vagrant/
 configs/
@@ -52,3 +30,4 @@ Icon
 .AppleDesktop
 Network Trash Folder
 Temporary Items
+.apdisk
