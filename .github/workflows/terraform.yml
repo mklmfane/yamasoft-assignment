@@ -1,4 +1,4 @@
-name: Terraform
+name: Exercise1-workflow
 
 on:
   workflow_dispatch:
@@ -16,7 +16,7 @@ on:
         type: choice
         options: ["true","false"]
   push:
-    branches: ["master", "main"]
+    branches: ["master"]
   pull_request:
     branches: ["*"]
 
@@ -178,9 +178,7 @@ jobs:
 
       - name: Plan targeted modules
         run: |
-          terraform plan -target=module.s3_bucket_state_oidc -no-color
-          terraform plan -target=module.iam_tf_policies     -no-color
-          terraform plan -target=module.github_oidc         -no-color    
+          terraform plan -no-color
 
       # If a GitHub OIDC provider/role already exists, don’t recreate them
       - name: Detect existing GitHub OIDC provider/role
@@ -232,9 +230,6 @@ jobs:
           set -euo pipefail
           terraform apply \
             -input=false \
-            -target=module.s3_bucket_state_oidc \
-            -target=module.iam_tf_policies \
-            -target=module.github_oidc \
             -auto-approve
 
       - name: Install jq
@@ -371,9 +366,9 @@ jobs:
           fi
           # Optional: only include dynamodb_table if you actually use it
           if [ -n "${TF_BACKEND_DDB_TABLE:-}" ]; then
-            ARGS+=(-backend-config="use_lockfile=false")
+            ARGS+=(-backend-config="dynamodb_table=${TF_BACKEND_DDB_TABLE}")
           fi
-          # Do NOT pass use_lockfile; it isn't an S3 backend setting and if empty it breaks init
+          # Do NOT pass use_lockfile; it is not a S3 backend setting and if empty it breaks init
           terraform init "${ARGS[@]}"        
 
       - name: Terraform validate
@@ -385,8 +380,6 @@ jobs:
         run: |
           set -euo pipefail
           terraform plan -input=false \             
-            -target=module.s3_bucket_state_oidc \
-            -target=module.iam_tf_policies \
             -no-color \ 
             -out=tfplan.bin
 
@@ -398,17 +391,16 @@ jobs:
           path: tfplan.bin
           retention-days: 3
 
-
       - name: Terraform apply
         if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.do_apply == 'true')
         run: |
           set -euo pipefail
-          terraform apply -input=false -target=module.s3_bucket_state_oidc -target=module.iam_tf_policies -auto-approve
+          terraform apply -input=false -auto-approve
 
       # Manual destroy only
       - name: Terraform destroy (manual only)
         if: github.event_name == 'workflow_dispatch' && inputs.do_destroy == 'true' 
         run: |
           set -euo pipefail 
-          terraform destroy -target=module.s3_bucket_state_oidc -target=module.iam_tf_policies -auto-approve
+          terraform destroy -auto-approve
 
